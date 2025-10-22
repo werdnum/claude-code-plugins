@@ -1,0 +1,97 @@
+{
+  "formatting": {
+    "enabled": true,
+    "formatters": {
+      "ensure_newline": {
+        "enabled": true,
+        "patterns": ["*.py", "*.js", "*.ts", "*.jsx", "*.tsx", "*.md", "*.json"],
+        "command": "sed -i -e '${ /./s/$/\\n/ }' {}"
+      },
+      "trim_trailing_whitespace": {
+        "enabled": false,
+        "patterns": ["*.py", "*.js", "*.ts", "*.jsx", "*.tsx"],
+        "command": "sed -i 's/[[:space:]]*$//' {}"
+      }
+    },
+    "exclude": [
+      "*.min.js",
+      "*.min.css",
+      "build/*",
+      "dist/*",
+      "node_modules/*",
+      ".venv/*",
+      "__pycache__/*",
+      "*.pyc"
+    ]
+  },
+  "linting": {
+    "enabled": true,
+    "informationalOnly": true,
+    "python": {
+      "enabled": true,
+      "venvPath": "${VIRTUAL_ENV:-.venv}",
+      "tools": {
+        "ruff-format": {
+          "enabled": true,
+          "command": "{venv}/bin/ruff format {file}",
+          "timeout": 5000
+        },
+        "ruff-check": {
+          "enabled": true,
+          "command": "{venv}/bin/ruff check --preview --ignore=E501 {file}",
+          "timeout": 2000,
+          "showDiff": true
+        },
+        "basedpyright": {
+          "enabled": true,
+          "command": "{venv}/bin/basedpyright {file}",
+          "timeout": 8000,
+          "maxErrorsShown": 5
+        },
+        "ast-grep-conformance": {
+          "enabled": true,
+          "scriptPath": ".ast-grep/check-conformance.py",
+          "timeout": 2000
+        },
+        "ast-grep-hints": {
+          "enabled": true,
+          "scriptPath": ".ast-grep/check-hints.py",
+          "timeout": 2000,
+          "filterMode": "new-code-only"
+        }
+      }
+    },
+    "typescript": {
+      "enabled": true,
+      "projectDir": "frontend",
+      "tools": {
+        "prettier": {
+          "enabled": true,
+          "npmScript": "format",
+          "timeout": 5000
+        },
+        "eslint": {
+          "enabled": true,
+          "npmScript": "lint:fix",
+          "timeout": 8000
+        }
+      }
+    },
+    "angular": {
+      "enabled": false,
+      "projectDir": "app",
+      "tools": {
+        "prettier": {
+          "enabled": true,
+          "npmScript": "format",
+          "timeout": 5000
+        },
+        "eslint": {
+          "enabled": true,
+          "npmScript": "lint:fix",
+          "timeout": 8000
+        }
+      }
+    }
+  }
+}

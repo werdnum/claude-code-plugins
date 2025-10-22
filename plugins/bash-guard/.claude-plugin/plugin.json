@@ -1,0 +1,8 @@
+{
+  "name": "bash-guard",
+  "version": "1.0.0",
+  "description": "Safety checks for Bash commands - prevents dangerous operations, enforces timeouts, and blocks commits to main branch",
+  "author": "Andrew Perry",
+  "tags": ["safety", "bash", "git", "hooks"],
+  "hooks": "hooks/hooks.json"
+}

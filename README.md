@@ -22,13 +22,55 @@ Or if using a git remote:
 
 ## Available Plugins
 
-Plugins will be added to the `plugins/` directory. Browse available plugins using:
+### bash-guard
+
+Safety checks for Bash commands - prevents dangerous operations, enforces timeouts, and blocks commits to main branch.
+
+```bash
+/plugin install bash-guard@claude-code-plugins
+```
+
+**Features**: Banned command patterns, main branch protection, timeout enforcement, background restrictions
+
+### format-and-lint
+
+Auto-format and lint files after edits with support for Python, TypeScript, and Angular.
+
+```bash
+/plugin install format-and-lint@claude-code-plugins
+```
+
+**Features**: File formatting, Python linting (ruff, basedpyright, ast-grep), TypeScript/Angular linting (prettier, eslint)
+
+### guardian
+
+Test verification, pre-commit review workflow, and stop validation to ensure code quality.
+
+```bash
+/plugin install guardian@claude-code-plugins
+```
+
+**Features**: Test verification hooks, pre-commit review workflow, stop validation with oneshot mode support
+
+### development-agents
+
+Collection of specialized development agents and commands for common workflows.
+
+```bash
+/plugin install development-agents@claude-code-plugins
+```
+
+**Includes**: systematic-debugger, focused-coder, mechanical-coder, codebase-researcher, external-research-specialist, playwright-qa-tester, parallel-coder agents, plus /test command
+
+## Browse Plugins
+
+Use the Claude Code plugin browser:
 
 ```bash
 /plugin
 ```
 
-Then select "Browse Plugins" and choose this marketplace.
+Then select "Browse Plugins" and choose the "claude-code-plugins" marketplace.
 
 ## Development
 

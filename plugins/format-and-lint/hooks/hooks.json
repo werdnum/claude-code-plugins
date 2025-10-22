@@ -1,0 +1,14 @@
+{
+  "PostToolUse": [
+    {
+      "matcher": "Edit|Write|NotebookEdit",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "/usr/bin/env python3 ${CLAUDE_PLUGIN_ROOT}/scripts/format-and-lint.py",
+          "timeout": 15000
+        }
+      ]
+    }
+  ]
+}

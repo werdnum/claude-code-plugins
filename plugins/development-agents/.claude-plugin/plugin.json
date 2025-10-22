@@ -1,0 +1,9 @@
+{
+  "name": "development-agents",
+  "version": "1.0.0",
+  "description": "Collection of specialized development agents and commands for common workflows",
+  "author": "Andrew Perry",
+  "tags": ["agents", "commands", "workflows", "debugging", "testing"],
+  "agents": "agents",
+  "commands": "commands"
+}

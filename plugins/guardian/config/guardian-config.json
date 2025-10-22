@@ -1,0 +1,117 @@
+{
+  "testVerification": {
+    "enabled": true,
+    "skipInRemote": true,
+    "testCommands": {
+      "local": [
+        {
+          "pattern": "^(\\.?/?\\.\\.?venv/bin/)?poe\\s+test(\\s+(-[xqvs]+|--[a-z-]+|-n\\s*[0-9]+))*\\s*$",
+          "name": "poe test"
+        },
+        {
+          "pattern": "^pytest\\b",
+          "name": "pytest"
+        }
+      ],
+      "remote": [
+        {
+          "pattern": "^poe\\s+lint-fast",
+          "name": "poe lint-fast"
+        }
+      ]
+    },
+    "environmentSelector": "CLAUDE_CODE_REMOTE",
+    "triggerCommands": [
+      "git commit",
+      "gh pr create",
+      "echo done"
+    ],
+    "excludeFromTestRequirement": [
+      "^docs/",
+      "^\\.claude/",
+      "^\\.github/",
+      "^\\.devcontainer/",
+      "^deploy/",
+      "^contrib/",
+      "^scripts/review-changes\\.(py|sh)",
+      "^scripts/format-and-lint\\.sh",
+      "^\\.pre-commit-config\\.yaml",
+      "^\\.gitignore",
+      "^\\.dockerignore",
+      "\\.(md|txt)$",
+      "^scratch/",
+      "^tmp/",
+      "^README",
+      "^LICENSE",
+      "^CHANGELOG",
+      "^Dockerfile$",
+      "^\\.devcontainer/Dockerfile$",
+      "^\\.devcontainer/Dockerfile\\.ci$"
+    ],
+    "testReportFallback": {
+      "enabled": true,
+      "reportFile": ".report.json",
+      "transcriptStaleThreshold": 300
+    }
+  },
+  "preCommitReview": {
+    "enabled": true,
+    "skipInRemote": true,
+    "triggers": {
+      "gitCommit": true,
+      "prCreate": true
+    },
+    "workflow": {
+      "executeGitAdds": true,
+      "stashUnstaged": true,
+      "runFormatLint": {
+        "enabled": false,
+        "scriptPath": "scripts/format-and-lint.sh"
+      },
+      "runPreCommitHooks": {
+        "enabled": true,
+        "maxIterations": 5
+      },
+      "runCodeReview": {
+        "enabled": false,
+        "scriptPath": "scripts/review-changes.py",
+        "cacheKeyLength": 12
+      }
+    },
+    "bypassMechanisms": {
+      "reviewedSentinel": "Reviewed: cache-{id}",
+      "bypassSentinel": "Bypass-Review: {reason}",
+      "allowReviewedForMinor": true,
+      "requireBypassForBlocking": true
+    }
+  },
+  "stopValidation": {
+    "enabled": true,
+    "returnCode": 2,
+    "skipInRemote": false,
+    "validation": {
+      "formatAndLint": {
+        "enabled": true,
+        "commands": [
+          ".venv/bin/poe format",
+          ".venv/bin/poe lint-fast"
+        ]
+      },
+      "uncommittedChanges": "warn",
+      "unpushedCommits": "warn",
+      "testStatus": "error",
+      "checkRequestFulfilled": true
+    },
+    "oneshotMode": {
+      "enabled": true,
+      "strictRequirements": {
+        "gitRepo": true,
+        "featureBranch": true,
+        "cleanWorkingDir": true,
+        "allCommitsPushed": true,
+        "testsPass": true
+      },
+      "allowFailureFile": ".claude/FAILURE_REASON"
+    }
+  }
+}
