@@ -22,6 +22,7 @@ class ReviewHook:
 
     def __init__(self) -> None:
         self.repo_root = self._get_repo_root()
+        self.config = self._load_config()
         # ast-grep-ignore: no-dict-any - Hook configuration uses generic dict for flexibility
         self.stash_ref: str | None = None
         self.has_stashed = False
@@ -38,6 +39,67 @@ class ReviewHook:
             # Not in a git repo, allow the command
             sys.exit(0)
         return Path(result.stdout.strip())
+
+    def _load_config(self) -> dict[str, Any]:
+        """Load configuration with layered override support."""
+        plugin_root = Path(os.environ.get("CLAUDE_PLUGIN_ROOT", Path(__file__).parent.parent))
+
+        # Load default configuration
+        default_config_path = plugin_root / "config" / "guardian-config.json"
+        try:
+            with open(default_config_path, encoding="utf-8") as f:
+                config = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            print(f"Error loading default config from {default_config_path}: {e}", file=sys.stderr)
+            return self._get_fallback_config()
+
+        # Load global overrides if they exist
+        global_config_path = Path.home() / ".config" / "claude-code" / "guardian.json"
+        if global_config_path.exists():
+            try:
+                with open(global_config_path, encoding="utf-8") as f:
+                    global_config = json.load(f)
+                    config = self._merge_config(config, global_config)
+            except (FileNotFoundError, json.JSONDecodeError):
+                pass
+
+        # Load project overrides if they exist
+        project_config_path = self.repo_root / ".claude" / "guardian.json"
+        if project_config_path.exists():
+            try:
+                with open(project_config_path, encoding="utf-8") as f:
+                    project_config = json.load(f)
+                    config = self._merge_config(config, project_config)
+            except (FileNotFoundError, json.JSONDecodeError):
+                pass
+
+        return config
+
+    def _merge_config(self, base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+        """Deep merge two configuration dictionaries."""
+        result = base.copy()
+        for key, value in override.items():
+            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+                result[key] = self._merge_config(result[key], value)
+            else:
+                result[key] = value
+        return result
+
+    def _get_fallback_config(self) -> dict[str, Any]:
+        """Return minimal fallback config if default config can't be loaded."""
+        return {
+            "preCommitReview": {
+                "enabled": True,
+                "skipInRemote": True,
+                "workflow": {
+                    "executeGitAdds": True,
+                    "stashUnstaged": True,
+                    "runFormatLint": {"enabled": False},
+                    "runPreCommitHooks": {"enabled": True, "maxIterations": 5},
+                    "runCodeReview": {"enabled": False}
+                }
+            }
+        }
 
     # ast-grep-ignore: no-dict-any - JSON parsing requires generic dict
     def _parse_input(self) -> dict[str, Any]:
@@ -156,11 +218,11 @@ class ReviewHook:
             )
 
     def _run_formatters_and_linters(self) -> bool:
-        """Run format-and-lint.sh on staged files."""
-        script_path = self.repo_root / "scripts" / "format-and-lint.sh"
-        if not script_path.exists():
-            print("⚠️ scripts/format-and-lint.sh not found", file=sys.stderr)
-            return True
+        """Run formatting/linting via plugin or repo script."""
+        format_config = self.config.get("preCommitReview", {}).get("workflow", {}).get("runFormatLint", {})
+
+        if not format_config.get("enabled", False):
+            return True  # Skip if disabled in config
 
         # Get staged files
         result = subprocess.run(
@@ -174,7 +236,28 @@ class ReviewHook:
         if not staged_files:
             return True
 
-        print("Running format-and-lint.sh on staged files...", file=sys.stderr)
+        # Try format-and-lint plugin if enabled
+        if format_config.get("usePlugin", True):
+            plugin_root = Path(os.environ.get("CLAUDE_PLUGIN_ROOT", Path(__file__).parent.parent))
+            # Check if format-and-lint plugin is available (assumes it's a sibling plugin)
+            format_plugin_script = plugin_root.parent / "format-and-lint" / "scripts" / "format-and-lint.py"
+
+            if format_plugin_script.exists():
+                print("Running format-and-lint plugin...", file=sys.stderr)
+                # Format-and-lint plugin works via PostToolUse hooks, not directly callable
+                # For now, just note that it exists and will run automatically
+                print("ℹ️ format-and-lint plugin will run automatically via hooks", file=sys.stderr)
+                return True
+
+        # Fall back to repo script
+        repo_script_path = format_config.get("repoScriptPath", "scripts/format-and-lint.sh")
+        script_path = self.repo_root / repo_script_path
+
+        if not script_path.exists():
+            print(f"⚠️ {repo_script_path} not found, skipping formatting", file=sys.stderr)
+            return True
+
+        print(f"Running {repo_script_path}...", file=sys.stderr)
         result = subprocess.run(
             [str(script_path)] + staged_files,
             capture_output=True,
@@ -266,13 +349,21 @@ class ReviewHook:
         Returns:
             Tuple of (exit_code, review_data, cache_key)
         """
-        review_script = self.repo_root / "scripts" / "review-changes.py"
+        # Check if code review is enabled in config
+        review_config = self.config.get("preCommitReview", {}).get("workflow", {}).get("runCodeReview", {})
+        if not review_config.get("enabled", False):
+            return 0, {}, ""  # Skip if disabled
+
+        # Use plugin's bundled review script
+        plugin_root = Path(os.environ.get("CLAUDE_PLUGIN_ROOT", Path(__file__).parent.parent))
+        review_script = plugin_root / "scripts" / "review-changes.py"
+
         if not review_script.exists():
-            print("Review script not found, skipping code review", file=sys.stderr)
+            print("Review script not found in plugin, skipping code review", file=sys.stderr)
             return 0, {}, ""
 
         print("\nAnalyzing staged changes for issues...", file=sys.stderr)
-        cmd = [sys.executable, str(review_script), "--json"]
+        cmd = ["uv", "run", str(review_script), "--json"]
         if command:
             cmd.extend(["--command", command])
         result = subprocess.run(
@@ -357,9 +448,15 @@ class ReviewHook:
 
     def run(self) -> None:
         """Main workflow execution."""
-        # Skip review when running in remote Claude Code session (resource-constrained)
-        if os.getenv("CLAUDE_CODE_REMOTE", "false").lower() == "true":
+        # Check if pre-commit review is enabled
+        pre_commit_config = self.config.get("preCommitReview", {})
+        if not pre_commit_config.get("enabled", True):
             sys.exit(0)
+
+        # Skip review when running in remote Claude Code session if configured
+        if pre_commit_config.get("skipInRemote", True):
+            if os.getenv("CLAUDE_CODE_REMOTE", "false").lower() == "true":
+                sys.exit(0)
 
         try:
             # Parse input

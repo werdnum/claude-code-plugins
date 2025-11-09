@@ -1,109 +1,138 @@
 {
+  "$schema": "https://docs.claude.com/schemas/guardian-config.json",
+  "description": "Guardian plugin default configuration. Override with ~/.config/claude-code/guardian.json (global) or .claude/guardian.json (project-specific)",
+
   "testVerification": {
-    "enabled": true,
+    "description": "Ensures tests have been run before allowing commits. Disabled by default - enable in project config with project-specific test commands.",
+    "enabled": false,
     "skipInRemote": true,
+    "comment_skipInRemote": "Skip in remote Claude Code sessions (limited resources)",
+
     "testCommands": {
-      "local": [
-        {
-          "pattern": "^(\\.?/?\\.\\.?venv/bin/)?poe\\s+test(\\s+(-[xqvs]+|--[a-z-]+|-n\\s*[0-9]+))*\\s*$",
-          "name": "poe test"
-        },
-        {
-          "pattern": "^pytest\\b",
-          "name": "pytest"
-        }
-      ],
-      "remote": [
-        {
-          "pattern": "^poe\\s+lint-fast",
-          "name": "poe lint-fast"
-        }
-      ]
+      "description": "Patterns to recognize valid test commands in transcript",
+      "local": [],
+      "comment_local": "Add patterns like: {'pattern': '^pytest\\b', 'name': 'pytest'} or {'pattern': '^npm test', 'name': 'npm test'}",
+      "remote": [],
+      "comment_remote": "Lighter commands for remote sessions, e.g. linting only"
     },
+
     "environmentSelector": "CLAUDE_CODE_REMOTE",
+    "comment_environmentSelector": "Environment variable to check for remote vs local (true = remote)",
+
     "triggerCommands": [
       "git commit",
-      "gh pr create",
-      "echo done"
+      "gh pr create"
     ],
+    "comment_triggerCommands": "Commands that trigger the test verification check",
+
     "excludeFromTestRequirement": [
       "^docs/",
       "^\\.claude/",
       "^\\.github/",
       "^\\.devcontainer/",
-      "^deploy/",
-      "^contrib/",
-      "^scripts/review-changes\\.(py|sh)",
-      "^scripts/format-and-lint\\.sh",
-      "^\\.pre-commit-config\\.yaml",
-      "^\\.gitignore",
-      "^\\.dockerignore",
-      "\\.(md|txt)$",
-      "^scratch/",
-      "^tmp/",
+      "\\.(md|txt|rst)$",
       "^README",
       "^LICENSE",
-      "^CHANGELOG",
-      "^Dockerfile$",
-      "^\\.devcontainer/Dockerfile$",
-      "^\\.devcontainer/Dockerfile\\.ci$"
+      "^CHANGELOG"
     ],
+    "comment_excludeFromTestRequirement": "Files that don't require tests (docs, config, etc)",
+
     "testReportFallback": {
+      "description": "If transcript doesn't show test run, check for test report file",
       "enabled": true,
       "reportFile": ".report.json",
-      "transcriptStaleThreshold": 300
+      "transcriptStaleThreshold": 300,
+      "comment_transcriptStaleThreshold": "Seconds - how old transcript can be before requiring fresh test run"
     }
   },
+
   "preCommitReview": {
+    "description": "Pre-commit workflow: format, lint, run pre-commit hooks, and LLM code review",
     "enabled": true,
     "skipInRemote": true,
+    "comment_skipInRemote": "Skip in remote sessions (LLM review is expensive)",
+
     "triggers": {
       "gitCommit": true,
       "prCreate": true
     },
+    "comment_triggers": "Which commands trigger the pre-commit review workflow",
+
     "workflow": {
       "executeGitAdds": true,
+      "comment_executeGitAdds": "Execute any 'git add' commands found in the commit command",
+
       "stashUnstaged": true,
+      "comment_stashUnstaged": "Stash unstaged changes to isolate what's being committed",
+
       "runFormatLint": {
+        "description": "Run formatting/linting before commit",
         "enabled": false,
-        "scriptPath": "scripts/format-and-lint.sh"
+        "comment_enabled": "Disabled by default. Enable in project config and configure tools.",
+        "usePlugin": true,
+        "comment_usePlugin": "If true, use format-and-lint plugin if available, otherwise fall back to repo script",
+        "repoScriptPath": "scripts/format-and-lint.sh",
+        "comment_repoScriptPath": "Path to repo-specific format script (relative to repo root)"
       },
+
       "runPreCommitHooks": {
+        "description": "Run pre-commit framework hooks if .pre-commit-config.yaml exists",
         "enabled": true,
-        "maxIterations": 5
+        "maxIterations": 5,
+        "comment_maxIterations": "Max iterations when hooks modify files (prevents infinite loops)"
       },
+
       "runCodeReview": {
+        "description": "LLM-based code review using bundled review-changes.py script",
         "enabled": false,
-        "scriptPath": "scripts/review-changes.py",
-        "cacheKeyLength": 12
+        "comment_enabled": "Disabled by default (expensive). Enable in project config. Requires OPENROUTER_KEY or configured llm model.",
+        "cacheKeyLength": 12,
+        "comment_cacheKeyLength": "Length of cache key prefix for 'Reviewed: cache-XXXX' sentinel"
       }
     },
+
     "bypassMechanisms": {
+      "description": "How to bypass review warnings/blocks",
       "reviewedSentinel": "Reviewed: cache-{id}",
+      "comment_reviewedSentinel": "Add to commit message to acknowledge minor issues",
       "bypassSentinel": "Bypass-Review: {reason}",
+      "comment_bypassSentinel": "Add to commit message to escalate blocking issues to user",
       "allowReviewedForMinor": true,
-      "requireBypassForBlocking": true
+      "comment_allowReviewedForMinor": "Allow 'Reviewed' sentinel for minor/warning issues",
+      "requireBypassForBlocking": true,
+      "comment_requireBypassForBlocking": "Require 'Bypass-Review' with reason for blocking issues"
     }
   },
+
   "stopValidation": {
-    "enabled": true,
+    "description": "Validation checks when Claude Code session stops",
+    "enabled": false,
+    "comment_enabled": "Disabled by default - very strict. Enable per-project if desired.",
     "returnCode": 2,
+    "comment_returnCode": "Exit code when validation fails (2 = error)",
     "skipInRemote": false,
+
     "validation": {
       "formatAndLint": {
-        "enabled": true,
-        "commands": [
-          ".venv/bin/poe format",
-          ".venv/bin/poe lint-fast"
-        ]
+        "description": "Run format/lint commands before session end",
+        "enabled": false,
+        "commands": [],
+        "comment_commands": "Project-specific format/lint commands, e.g. ['npm run format', 'npm run lint']"
       },
       "uncommittedChanges": "warn",
+      "comment_uncommittedChanges": "How to handle uncommitted changes: 'ignore', 'warn', or 'error'",
       "unpushedCommits": "warn",
-      "testStatus": "error",
-      "checkRequestFulfilled": true
+      "comment_unpushedCommits": "How to handle unpushed commits: 'ignore', 'warn', or 'error'",
+      "testStatus": "warn",
+      "comment_testStatus": "How to handle missing test runs: 'ignore', 'warn', or 'error'",
+      "checkRequestFulfilled": true,
+      "comment_checkRequestFulfilled": "Warn if user request doesn't appear to be fulfilled"
     },
+
     "oneshotMode": {
-      "enabled": true,
+      "description": "Strict requirements for one-shot/autonomous sessions",
+      "enabled": false,
+      "comment_enabled": "Only enable for autonomous/one-shot sessions",
       "strictRequirements": {
         "gitRepo": true,
         "featureBranch": true,
@@ -111,7 +140,8 @@
         "allCommitsPushed": true,
         "testsPass": true
       },
-      "allowFailureFile": ".claude/FAILURE_REASON"
+      "allowFailureFile": ".claude/FAILURE_REASON",
+      "comment_allowFailureFile": "If this file exists, allow failure with reason from file"
     }
   }
 }
