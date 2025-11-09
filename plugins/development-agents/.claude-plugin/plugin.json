@@ -6,6 +6,6 @@
     "name": "Andrew Garrett",
     "email": "andrewgarrett@google.com"
   },
-  "agents": "./agents/*.md",
-  "commands": "./commands/*.md"
+  "agents": "./agents/",
+  "commands": "./commands/"
 }

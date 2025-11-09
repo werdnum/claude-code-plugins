@@ -1,31 +1,33 @@
 {
-  "PreToolUse": [
-    {
-      "matcher": "Bash",
-      "hooks": [
-        {
-          "type": "command",
-          "command": "/bin/bash ${CLAUDE_PLUGIN_ROOT}/scripts/test-verification-hook.sh",
-          "timeout": 60000
-        },
-        {
-          "type": "command",
-          "command": "uv run ${CLAUDE_PLUGIN_ROOT}/scripts/review-workflow-hook.py",
-          "timeout": 300000
-        }
-      ]
-    }
-  ],
-  "Stop": [
-    {
-      "matcher": "",
-      "hooks": [
-        {
-          "type": "command",
-          "command": "/bin/bash ${CLAUDE_PLUGIN_ROOT}/scripts/stop-validation-hook.sh",
-          "timeout": 300000
-        }
-      ]
-    }
-  ]
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/bin/bash ${CLAUDE_PLUGIN_ROOT}/scripts/test-verification-hook.sh",
+            "timeout": 60000
+          },
+          {
+            "type": "command",
+            "command": "uv run ${CLAUDE_PLUGIN_ROOT}/scripts/review-workflow-hook.py",
+            "timeout": 300000
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/bin/bash ${CLAUDE_PLUGIN_ROOT}/scripts/stop-validation-hook.sh",
+            "timeout": 300000
+          }
+        ]
+      }
+    ]
+  }
 }
