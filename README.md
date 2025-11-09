@@ -89,13 +89,15 @@ echo '{"linting": {"enabled": true}}' > ~/.config/claude-code/format-lint.json
 **Hook Type**: PreToolUse (Bash)
 **Configuration**: `bash-guard.json`
 
-Prevents dangerous shell commands from executing and enforces best practices.
+Prevents dangerous shell commands from executing and enforces best practices. Supports automatic command rewriting and timeout enforcement with suggestion-based feedback.
 
 **Key Features**:
 - Block dangerous commands (rm -rf /, fork bombs, etc.)
 - Prevent commits to protected branches (main/master)
 - Enforce minimum timeouts for long-running commands
 - Block specific commands from running in background
+- **Auto-fix/Suggestion mode**: Suggest command rewrites and timeout adjustments
+- **Command replacement**: Transform problematic commands into safer alternatives
 
 **Use Cases**:
 - Prevent accidental system damage

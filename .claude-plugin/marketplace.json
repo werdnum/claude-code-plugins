@@ -6,7 +6,7 @@
       "name": "bash-guard",
       "path": "plugins/bash-guard",
       "version": "1.0.0",
-      "description": "Safety checks for Bash commands - prevents dangerous operations, enforces timeouts, and blocks commits to main branch"
+      "description": "Safety checks for Bash commands with auto-fix suggestions - prevents dangerous operations, enforces timeouts, blocks commits to main branch, and suggests command rewrites"
     },
     {
       "name": "format-and-lint",
