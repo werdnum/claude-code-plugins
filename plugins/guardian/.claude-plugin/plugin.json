@@ -5,6 +5,5 @@
   "author": {
     "name": "Andrew Garrett",
     "email": "andrewgarrett@google.com"
-  },
-  "hooks": "./hooks/hooks.json"
+  }
 }
