@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
 """
 PreToolHook script to prevent commits on protected branches (main/master).
 Reads input from stdin and returns 0 to allow, 2 to block with message.

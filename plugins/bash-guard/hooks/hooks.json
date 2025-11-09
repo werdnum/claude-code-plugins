@@ -5,11 +5,11 @@
       "hooks": [
         {
           "type": "command",
-          "command": "/usr/bin/env python3 ${CLAUDE_PLUGIN_ROOT}/scripts/check-banned-commands.py"
+          "command": "uv run ${CLAUDE_PLUGIN_ROOT}/scripts/check-banned-commands.py"
         },
         {
           "type": "command",
-          "command": "/usr/bin/env python3 ${CLAUDE_PLUGIN_ROOT}/scripts/check-main-branch-commit.py"
+          "command": "uv run ${CLAUDE_PLUGIN_ROOT}/scripts/check-main-branch-commit.py"
         }
       ]
     }

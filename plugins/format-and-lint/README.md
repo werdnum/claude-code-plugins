@@ -12,6 +12,18 @@ Auto-format and lint files after edits with support for Python, TypeScript/JavaS
 
 All features are individually toggleable via configuration.
 
+## Prerequisites
+
+- **uv**: Required for running hook scripts with PEP 723 inline dependencies
+  ```bash
+  # Install uv
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  ```
+- **Python 3.11+**: Available on system (uv will use it automatically)
+- **Language-specific tools**: Install based on your project type
+  - Python: `ruff`, `basedpyright` (installed in venv or via uv)
+  - TypeScript/Angular: `prettier`, `eslint` (installed via npm)
+
 ## Installation
 
 ```bash

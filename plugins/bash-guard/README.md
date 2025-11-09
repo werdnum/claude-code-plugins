@@ -23,6 +23,15 @@ bash-guard is a PreToolUse hook plugin that intercepts Bash tool calls before ex
 **Blocks Execution**: Yes
 **Configuration File**: `bash-guard.json`
 
+## Prerequisites
+
+- **uv**: Required for running hook scripts with PEP 723 inline dependencies
+  ```bash
+  # Install uv
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  ```
+- **Python 3.11+**: Available on system (uv will use it automatically)
+
 ## Features
 
 ### 1. Banned Command Patterns
@@ -60,6 +69,31 @@ Prevent specific commands from running in background:
 - Blocks `poe test` from running with `run_in_background: true`
 - Custom patterns for project-specific restrictions
 - Ensures critical operations complete before continuing
+
+### 5. Auto-Fix / Suggestion Mode
+
+bash-guard can suggest command modifications instead of just blocking:
+
+- **Command Rewrites**: Transform problematic commands into safer alternatives
+- **Timeout Auto-Setting**: Automatically add or increase timeouts as needed
+- **Background Flag Fixes**: Change run_in_background to false when required
+
+**Current Status**: Suggestion mode is enabled by default (`use_updated_input: false`)
+
+The plugin uses Claude Code's `updatedInput` feature to modify commands before execution. However, this feature is currently broken in Claude Code v2.0.34 (see [GitHub issue #4368](https://github.com/anthropics/claude-code/issues/4368)). When disabled (default), the plugin blocks commands but provides detailed suggestions showing exactly what needs to be fixed.
+
+**Example Suggestion Output**:
+```
+• Command needs modifications:
+• Auto-setting timeout to 5 minutes for this command
+•   Reason: pytest requires at least 5 minutes for comprehensive test execution
+•
+• Suggested command:
+•   pytest tests/
+•   timeout: 300000
+```
+
+**When the bug is fixed**, you can enable auto-fix by setting `use_updated_input: true` in your configuration. The plugin will then automatically apply modifications instead of blocking with suggestions.
 
 ## Installation
 
@@ -121,91 +155,98 @@ Create `.claude/bash-guard.json` in your project:
 
 ```json
 {
-  "bannedCommands": {
-    "enabled": true,
-    "customPatterns": [
-      {
-        "regexp": "\\bnpm\\s+run\\s+dev\\b",
-        "explanation": "The dev server is already running. Do not start another instance."
-      }
-    ]
-  },
-  "mainBranchProtection": {
-    "enabled": true,
-    "protectedBranches": ["main", "master", "staging"]
-  },
-  "timeouts": {
-    "minimums": {
-      "^npm\\s+test": 300000
+  "use_updated_input": false,
+  "default_timeout_ms": 120000,
+  "command_rules": [
+    {
+      "regexp": "\\bnpm\\s+run\\s+dev\\b",
+      "action": "block",
+      "explanation": "The dev server is already running. Do not start another instance."
     }
-  }
+  ],
+  "timeout_requirements": [
+    {
+      "regexp": "^npm\\s+test\\b",
+      "minimum_timeout_ms": 300000,
+      "explanation": "npm test requires at least 5 minutes for comprehensive testing"
+    }
+  ]
 }
 ```
 
 ### Configuration Options
 
-#### Banned Commands
+#### Global Settings
 
 ```json
 {
-  "bannedCommands": {
-    "enabled": true,
-    "patterns": [
-      {
-        "regexp": "^\\s*rm\\s+-rf\\s+/\\s*$",
-        "explanation": "This command would delete the entire filesystem."
-      }
-    ],
-    "customPatterns": [
-      {
-        "regexp": "\\bmy-dangerous-command\\b",
-        "explanation": "Custom explanation for why this is blocked."
-      }
-    ]
-  }
+  "use_updated_input": false,
+  "default_timeout_ms": 120000
 }
 ```
 
 **Options**:
-- `enabled` (boolean): Enable/disable banned command checking
-- `patterns` (array): Built-in patterns (can be overridden)
-- `customPatterns` (array): Additional project-specific patterns
+- `use_updated_input` (boolean): Enable auto-fix mode (currently disabled due to Claude Code bug)
+- `default_timeout_ms` (number): Default timeout in milliseconds for commands without explicit timeout
 
-#### Main Branch Protection
-
-```json
-{
-  "mainBranchProtection": {
-    "enabled": true,
-    "protectedBranches": ["main", "master", "production", "staging"]
-  }
-}
-```
-
-**Options**:
-- `enabled` (boolean): Enable/disable branch protection
-- `protectedBranches` (array): List of branch names to protect
-
-#### Timeout Enforcement
+#### Command Rules (Block or Replace)
 
 ```json
 {
-  "timeouts": {
-    "defaults": {
-      "bash": 120000
+  "command_rules": [
+    {
+      "regexp": "^\\s*rm\\s+-rf\\s+/\\s*$",
+      "action": "block",
+      "explanation": "This command would delete the entire filesystem."
     },
-    "minimums": {
-      "^pytest\\b": 300000,
-      "^poe\\s+test\\b": 900000,
-      "^npm\\s+run\\s+e2e\\b": 600000
+    {
+      "regexp": "python\\s+-m\\s+pytest",
+      "action": "replace",
+      "replacement": "pytest",
+      "explanation": "Use pytest directly instead of python -m pytest for better performance"
     }
-  }
+  ]
 }
 ```
 
 **Options**:
-- `defaults.bash` (number): Default timeout in milliseconds
-- `minimums` (object): Map of regex patterns to minimum timeout in milliseconds
+- `regexp` (string): Regular expression pattern to match commands
+- `action` (string): Either "block" (prevent execution) or "replace" (suggest rewrite)
+- `explanation` (string): Human-readable explanation shown to Claude
+- `replacement` (string, required for "replace" action): Replacement pattern (supports regex capture groups)
+
+**Actions**:
+- `block`: Command is blocked with explanation
+- `replace`: Command is rewritten (or suggested for rewrite if use_updated_input is false)
+
+#### Timeout Requirements
+
+```json
+{
+  "timeout_requirements": [
+    {
+      "regexp": "^pytest\\b",
+      "minimum_timeout_ms": 300000,
+      "explanation": "pytest requires at least 5 minutes for comprehensive test execution"
+    },
+    {
+      "regexp": "^poe\\s+test\\b",
+      "minimum_timeout_ms": 900000,
+      "explanation": "poe test requires at least 15 minutes for full test suite"
+    },
+    {
+      "regexp": "^npm\\s+run\\s+e2e\\b",
+      "minimum_timeout_ms": 600000,
+      "explanation": "E2E tests require at least 10 minutes"
+    }
+  ]
+}
+```
+
+**Options**:
+- `regexp` (string): Pattern to match commands requiring specific timeout
+- `minimum_timeout_ms` (number): Minimum timeout in milliseconds
+- `explanation` (string): Explanation shown when timeout is insufficient
 
 **Timeout values**:
 - 120000ms = 2 minutes
@@ -217,16 +258,22 @@ Create `.claude/bash-guard.json` in your project:
 
 ```json
 {
-  "bannedInBackground": [
-    "^poe\\s+test\\b",
-    "^npm\\s+test\\b",
-    "^pytest\\b"
+  "background_restrictions": [
+    {
+      "regexp": "^poe\\s+test\\b",
+      "explanation": "poe test must run in foreground to ensure proper output capture"
+    },
+    {
+      "regexp": "^npm\\s+test\\b",
+      "explanation": "npm test must run in foreground for test result visibility"
+    }
   ]
 }
 ```
 
 **Options**:
-- Array of regex patterns that should not run in background
+- `regexp` (string): Pattern to match commands that should not run in background
+- `explanation` (string): Explanation shown when command is run in background
 
 ## Usage Examples
 
@@ -290,21 +337,52 @@ Now bash-guard enforces your project-specific conventions!
 
 ## Advanced Configuration
 
-### Disabling Specific Features
+### Command Replacement (Replace Action)
 
-Disable individual features while keeping others active:
+Use the `replace` action to automatically rewrite commands to safer or better alternatives:
 
 ```json
 {
-  "bannedCommands": {"enabled": false},
-  "mainBranchProtection": {"enabled": true},
-  "timeouts": {
-    "minimums": {
-      "^pytest\\b": 300000
+  "command_rules": [
+    {
+      "regexp": "python\\s+-m\\s+pytest(.*)",
+      "action": "replace",
+      "replacement": "pytest\\1",
+      "explanation": "Use pytest directly instead of python -m pytest"
+    },
+    {
+      "regexp": "npm\\s+run\\s+build\\s+--\\s+--mode=(\\w+)",
+      "action": "replace",
+      "replacement": "npm run build:\\1",
+      "explanation": "Use build scripts for different modes"
     }
-  }
+  ]
 }
 ```
+
+**Regex capture groups**:
+- `\\1`, `\\2`, etc. in `replacement` refer to captured groups from `regexp`
+- Example: `(.*)` captures everything, `\\1` inserts it in replacement
+
+**When use_updated_input is false** (current default):
+- Command is blocked with suggestions showing the rewritten version
+- Claude sees the suggestion and can manually apply it
+
+**When use_updated_input is true** (when bug is fixed):
+- Command is automatically rewritten and executed
+- More seamless but less transparent
+
+### Enabling Auto-Fix Mode (Experimental)
+
+To test the `updatedInput` feature (for when the bug is fixed):
+
+```json
+{
+  "use_updated_input": true
+}
+```
+
+**Warning**: This currently doesn't work in Claude Code v2.0.34. The JSON output is generated correctly but not applied to tool execution. Keep this disabled unless you're testing with a newer version.
 
 ### Regular Expression Tips
 
@@ -334,45 +412,45 @@ Set up global rules in `~/.config/claude-code/bash-guard.json`:
 
 ```json
 {
-  "bannedCommands": {
-    "customPatterns": [
-      {
-        "regexp": "\\bsudo\\s+rm\\b",
-        "explanation": "Using sudo with rm is dangerous. Double-check what you're deleting."
-      },
-      {
-        "regexp": "\\bcurl\\s+.*\\|\\s*bash",
-        "explanation": "Piping curl to bash is a security risk. Download and inspect first."
-      }
-    ]
-  },
-  "mainBranchProtection": {
-    "enabled": true,
-    "protectedBranches": ["main", "master"]
-  }
+  "command_rules": [
+    {
+      "regexp": "\\bsudo\\s+rm\\b",
+      "action": "block",
+      "explanation": "Using sudo with rm is dangerous. Double-check what you're deleting."
+    },
+    {
+      "regexp": "\\bcurl\\s+.*\\|\\s*bash",
+      "action": "block",
+      "explanation": "Piping curl to bash is a security risk. Download and inspect first."
+    }
+  ]
 }
 ```
 
 This applies to all your projects using bash-guard!
 
+**Note**: Main branch protection is handled by a separate script (`check-main-branch-commit.py`) and doesn't use this configuration file.
+
 ### Environment-Specific Configuration
 
-Use different configurations based on environment:
+Use different timeout requirements based on environment:
 
 ```json
 {
-  "timeouts": {
-    "minimums": {
-      "^poe\\s+test\\b": 900000
+  "timeout_requirements": [
+    {
+      "regexp": "^poe\\s+test\\b",
+      "minimum_timeout_ms": 900000,
+      "explanation": "Full test suite needs 15 minutes in development"
     }
-  }
+  ]
 }
 ```
 
-In CI:
+In CI (where resources may differ):
 ```bash
-# CI typically has more resources
-echo '{"timeouts": {"minimums": {"^poe\\\\s+test\\\\b": 300000}}}' > .claude/bash-guard.json
+# CI typically has more resources - reduce timeout requirement
+echo '{"timeout_requirements": [{"regexp": "^poe\\\\s+test\\\\b", "minimum_timeout_ms": 300000}]}' > .claude/bash-guard.json
 ```
 
 ## How It Works
@@ -424,28 +502,19 @@ config = merge_config(config, project_config)
 
 **Problem**: A safe command is being blocked
 
-**Solution**: Check which pattern is matching by reviewing the explanation. Override the specific pattern in your project config:
+**Solution**: Check which pattern is matching by reviewing the explanation. You can:
+
+1. Remove the specific pattern from your project config by creating an empty `command_rules` array:
 
 ```json
 {
-  "bannedCommands": {
-    "patterns": [
-      {
-        "regexp": "^\\s*cd\\s+",
-        "explanation": "disabled"
-      }
-    ]
-  }
+  "command_rules": []
 }
 ```
 
-Or disable banned commands entirely:
+2. Or override with more specific patterns that don't match your use case
 
-```json
-{
-  "bannedCommands": {"enabled": false}
-}
-```
+3. Or use the `replace` action instead of `block` to suggest a rewrite
 
 ### Configuration Not Loading
 
@@ -464,25 +533,25 @@ Or disable banned commands entirely:
 
 **Problem**: Timeout requirement is too high for your needs
 
-**Solution**: Override the specific pattern in your project config:
+**Solution**: Override the specific timeout requirement in your project config:
 
 ```json
 {
-  "timeouts": {
-    "minimums": {
-      "^poe\\s+test\\b": 300000
+  "timeout_requirements": [
+    {
+      "regexp": "^poe\\s+test\\b",
+      "minimum_timeout_ms": 300000,
+      "explanation": "Reduced timeout for faster tests"
     }
-  }
+  ]
 }
 ```
 
-Or remove the requirement:
+Or remove all timeout requirements:
 
 ```json
 {
-  "timeouts": {
-    "minimums": {}
-  }
+  "timeout_requirements": []
 }
 ```
 
@@ -523,36 +592,48 @@ print(bool(re.search(pattern, command)))
 
 Remember to escape special characters: `\\b`, `\\s`, etc.
 
+### Auto-Fix Not Working
+
+**Problem**: Set `use_updated_input: true` but commands aren't being auto-fixed
+
+**Solution**: This is a known bug in Claude Code v2.0.34. The `updatedInput` feature is broken - the hook generates correct JSON output but Claude Code doesn't apply the modifications.
+
+**Workaround**: Keep `use_updated_input: false` (the default). The plugin will block commands with detailed suggestions showing exactly what needs to be fixed. Claude can then manually apply the suggestions.
+
+**Tracking**: See [GitHub issue #4368](https://github.com/anthropics/claude-code/issues/4368)
+
+**When fixed**: Update to a newer Claude Code version and set `use_updated_input: true` to enable seamless auto-fixing.
+
 ## API Reference
 
 ### Configuration Schema
 
 ```typescript
 interface BashGuardConfig {
-  bannedCommands: {
-    enabled: boolean;
-    patterns: Array<{
-      regexp: string;
-      explanation: string;
-    }>;
-    customPatterns: Array<{
-      regexp: string;
-      explanation: string;
-    }>;
-  };
-  mainBranchProtection: {
-    enabled: boolean;
-    protectedBranches: string[];
-  };
-  timeouts: {
-    defaults: {
-      bash: number;  // milliseconds
-    };
-    minimums: {
-      [pattern: string]: number;  // milliseconds
-    };
-  };
-  bannedInBackground: string[];  // regex patterns
+  // Global settings
+  use_updated_input?: boolean;        // Enable auto-fix mode (default: false)
+  default_timeout_ms?: number;        // Default timeout in ms (default: 120000)
+
+  // Command rules (block or replace)
+  command_rules?: Array<{
+    regexp: string;                   // Pattern to match
+    action: "block" | "replace";      // Action to take
+    explanation: string;              // Explanation shown to Claude
+    replacement?: string;             // Required for "replace" action
+  }>;
+
+  // Timeout requirements
+  timeout_requirements?: Array<{
+    regexp: string;                   // Pattern to match
+    minimum_timeout_ms: number;       // Minimum timeout in ms
+    explanation: string;              // Explanation shown when insufficient
+  }>;
+
+  // Background execution restrictions
+  background_restrictions?: Array<{
+    regexp: string;                   // Pattern to match
+    explanation: string;              // Explanation shown when run in background
+  }>;
 }
 ```
 
@@ -562,8 +643,7 @@ See `config/bash-guard-config.json` for complete defaults.
 
 ### Environment Variables
 
-- `CLAUDE_PLUGIN_ROOT`: Plugin installation directory (set automatically)
-- `BASH_DEFAULT_TIMEOUT_MS`: Override default bash timeout
+- `CLAUDE_PLUGIN_ROOT`: Plugin installation directory (set automatically by Claude Code)
 
 ## Related Documentation
 

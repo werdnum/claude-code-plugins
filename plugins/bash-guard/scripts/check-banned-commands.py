@@ -1,149 +1,147 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
 """
-PreToolHook script to check Bash commands against banned patterns and enforce minimum timeouts.
-Reads input from stdin and returns 0 to allow, 2 to block with message.
+PreToolUse hook script to check Bash commands against configuration rules.
+Uses updatedInput feature to auto-fix commands where possible.
+
+Exit codes:
+- 0: Allow (with optional updatedInput modifications via stdout JSON)
+- 2: Block (with explanation via stderr)
 """
 
 import json
 import os
 import re
 import sys
-from pathlib import Path
-from typing import Any
 
 
-def load_config() -> dict[str, Any]:
-    """Load configuration with layered override support."""
-    # Get plugin root from environment
-    plugin_root = Path(os.environ.get("CLAUDE_PLUGIN_ROOT", Path(__file__).parent.parent))
+def load_config() -> dict:
+    """Load and parse the bash-guard-config.json configuration file."""
+    # Try layered config loading: plugin defaults → global → project
+    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", os.path.dirname(__file__))
 
-    # Load default configuration
-    default_config_path = plugin_root / "config" / "bash-guard-config.json"
-    try:
-        with open(default_config_path, encoding="utf-8") as f:
-            config = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError) as e:
-        print(f"Error loading default config from {default_config_path}: {e}", file=sys.stderr)
-        return {}
+    config_locations = [
+        os.path.join(plugin_root, "..", "config", "bash-guard-config.json"),
+        os.path.expanduser("~/.config/claude-code/bash-guard.json"),
+        os.path.join(os.getcwd(), ".claude", "bash-guard.json"),
+    ]
 
-    # Load global overrides if they exist
-    global_config_path = Path.home() / ".config" / "claude-code" / "bash-guard.json"
-    if global_config_path.exists():
-        try:
-            with open(global_config_path, encoding="utf-8") as f:
-                global_config = json.load(f)
-                # Deep merge global config into default config
-                config = merge_config(config, global_config)
-        except (FileNotFoundError, json.JSONDecodeError):
-            pass
+    config = {}
+    for config_path in config_locations:
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, encoding="utf-8") as f:
+                    layer_config = json.load(f)
+                    # Deep merge (simple version - replace entire keys)
+                    config.update(layer_config)
+            except (FileNotFoundError, json.JSONDecodeError):
+                continue
 
-    # Load project overrides if they exist
-    project_config_path = Path.cwd() / ".claude" / "bash-guard.json"
-    if project_config_path.exists():
-        try:
-            with open(project_config_path, encoding="utf-8") as f:
-                project_config = json.load(f)
-                # Deep merge project config into merged config
-                config = merge_config(config, project_config)
-        except (FileNotFoundError, json.JSONDecodeError):
-            pass
+    if not config:
+        print("Error: No configuration file found", file=sys.stderr)
+        sys.exit(1)
 
     return config
 
 
-def merge_config(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
-    """Deep merge two configuration dictionaries."""
-    result = base.copy()
-    for key, value in override.items():
-        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-            result[key] = merge_config(result[key], value)
-        else:
-            result[key] = value
-    return result
+def check_command_rules(
+    command: str, rules: list
+) -> tuple[str | None, str | None, str]:
+    """
+    Check command against rules and return action to take.
 
-
-def check_banned_commands(command: str, config: dict[str, Any]) -> tuple[bool, str]:
-    """Check if command matches any banned patterns."""
-    banned_config = config.get("bannedCommands", {})
-
-    if not banned_config.get("enabled", True):
-        return False, ""
-
-    # Check built-in patterns
-    patterns = banned_config.get("patterns", [])
-    for pattern_config in patterns:
-        pattern = pattern_config.get("regexp", "")
-        explanation = pattern_config.get("explanation", "This command is not allowed.")
+    Returns:
+        tuple of (action, replacement, explanation)
+        - action: "block", "replace", or None
+        - replacement: replacement string if action is "replace"
+        - explanation: human-readable explanation
+    """
+    for rule in rules:
+        pattern = rule.get("regexp", "")
+        action = rule.get("action", "block")
+        explanation = rule.get("explanation", "This command is not allowed.")
 
         try:
             if re.search(pattern, command):
-                return True, explanation
+                if action == "replace":
+                    replacement_template = rule.get("replacement", "")
+                    # Perform regex substitution with capture groups
+                    replacement = re.sub(pattern, replacement_template, command)
+                    return action, replacement, explanation
+                return action, None, explanation
         except re.error:
-            # Skip invalid patterns
+            # If the regex is invalid, skip it
             continue
 
-    # Check custom patterns
-    custom_patterns = banned_config.get("customPatterns", [])
-    for pattern_config in custom_patterns:
-        pattern = pattern_config.get("regexp", "")
-        explanation = pattern_config.get("explanation", "This command is not allowed.")
+    return None, None, ""
+
+
+def check_timeout_requirements(
+    command: str,
+    current_timeout: int | None,
+    requirements: list,
+    default_timeout_ms: int,
+) -> tuple[int | None, str]:
+    """
+    Check if command needs a minimum timeout and return required timeout if needed.
+
+    Returns:
+        tuple of (required_timeout_ms, explanation)
+        - required_timeout_ms: minimum timeout needed, or None if current is sufficient
+        - explanation: human-readable explanation
+    """
+    for requirement in requirements:
+        pattern = requirement.get("regexp", "")
+        min_timeout_ms = requirement.get("minimum_timeout_ms", 0)
+        explanation = requirement.get(
+            "explanation", "This command requires a longer timeout."
+        )
 
         try:
             if re.search(pattern, command):
-                return True, explanation
+                # Use default if no timeout specified
+                effective_timeout = (
+                    current_timeout
+                    if current_timeout is not None
+                    else default_timeout_ms
+                )
+
+                if effective_timeout < min_timeout_ms:
+                    return min_timeout_ms, explanation
+                return None, ""
         except re.error:
             continue
 
-    return False, ""
+    return None, ""
 
 
-def check_background_restrictions(command: str, run_in_background: bool, config: dict[str, Any]) -> tuple[bool, str]:
-    """Check if command is allowed to run in background."""
+def check_background_restrictions(
+    command: str, run_in_background: bool, restrictions: list
+) -> tuple[bool, str]:
+    """
+    Check if command should not run in background.
+
+    Returns:
+        tuple of (should_fix, explanation)
+        - should_fix: True if run_in_background should be set to False
+        - explanation: human-readable explanation
+    """
     if not run_in_background:
+        # Already correct, no fix needed
         return False, ""
 
-    banned_in_bg = config.get("bannedInBackground", [])
-    for pattern in banned_in_bg:
+    for restriction in restrictions:
+        pattern = restriction.get("regexp", "")
+        explanation = restriction.get(
+            "explanation", "This command must run in foreground."
+        )
+
         try:
             if re.search(pattern, command):
-                return True, f"'{pattern}' must NOT be run in the background. Always run it in the foreground."
-        except re.error:
-            continue
-
-    return False, ""
-
-
-def check_timeout_requirements(command: str, timeout: int | None, config: dict[str, Any]) -> tuple[bool, str]:
-    """Check if command meets minimum timeout requirements."""
-    timeouts_config = config.get("timeouts", {})
-    minimums = timeouts_config.get("minimums", {})
-    default_timeout = timeouts_config.get("defaults", {}).get("bash", 120000)
-
-    # Get default timeout from environment variable or config
-    timeout_str = os.environ.get("BASH_DEFAULT_TIMEOUT_MS", str(default_timeout))
-    try:
-        default_timeout_ms = int(timeout_str)
-    except ValueError:
-        default_timeout_ms = default_timeout
-
-    for pattern, min_timeout_ms in minimums.items():
-        try:
-            if re.search(pattern, command):
-                current_timeout_ms = timeout if timeout is not None else default_timeout_ms
-
-                if current_timeout_ms < min_timeout_ms:
-                    min_timeout_minutes = min_timeout_ms / 60000
-                    current_timeout_minutes = current_timeout_ms / 60000 if current_timeout_ms > 0 else 0
-
-                    cleaned_pattern = pattern.replace("\\b", "")
-                    message = f"Command '{cleaned_pattern}' requires a minimum timeout of {min_timeout_minutes:.0f} minutes. "
-
-                    if timeout is None:
-                        message += f"No timeout was specified, using default timeout of {(current_timeout_ms / 60000):.1f} minutes. Please add 'timeout: {min_timeout_ms}' to your Bash tool call."
-                    else:
-                        message += f"Current timeout is {current_timeout_minutes:.1f} minutes. Please increase it to at least {min_timeout_ms}."
-
-                    return True, message
+                return True, explanation
         except re.error:
             continue
 
@@ -151,7 +149,7 @@ def check_timeout_requirements(command: str, timeout: int | None, config: dict[s
 
 
 def main() -> None:
-    """Main entry point."""
+    """Main entry point for the hook."""
     # Read the hook input from stdin
     try:
         input_data = json.load(sys.stdin)
@@ -159,41 +157,112 @@ def main() -> None:
         print(f"Error: Invalid JSON input: {e}", file=sys.stderr)
         sys.exit(1)
 
+    # Only check Bash tool calls with commands
     tool_name = input_data.get("tool_name", "")
     tool_input = input_data.get("tool_input", {})
     command = tool_input.get("command", "")
-    timeout = tool_input.get("timeout")
-    run_in_background = tool_input.get("run_in_background", False)
 
-    # Only check Bash tool calls with commands
     if tool_name != "Bash" or not command:
         sys.exit(0)
 
     # Load configuration
     config = load_config()
-    if not config:
-        # Allow command if we can't load configuration
-        sys.exit(0)
+    use_updated_input = config.get("use_updated_input", False)
 
-    # Check banned commands
-    is_banned, explanation = check_banned_commands(command, config)
-    if is_banned:
+    # Track modifications to apply
+    updated_input = {}
+    modifications = []
+
+    # Check command rules (block or replace)
+    action, replacement, explanation = check_command_rules(
+        command, config.get("command_rules", [])
+    )
+
+    if action == "block":
+        # Block the command
         print(f"• {explanation}", file=sys.stderr)
         sys.exit(2)
 
-    # Check background restrictions
-    is_restricted, message = check_background_restrictions(command, run_in_background, config)
-    if is_restricted:
-        print(f"• {message}", file=sys.stderr)
-        sys.exit(2)
+    if action == "replace" and replacement and replacement != command:
+        # Apply command replacement
+        updated_input["command"] = replacement
+        modifications.append(f"Rewriting command: '{command}' → '{replacement}'")
+        modifications.append(f"  Reason: {explanation}")
+        # Use the replacement for subsequent checks
+        command = replacement
 
     # Check timeout requirements
-    needs_timeout, message = check_timeout_requirements(command, timeout, config)
-    if needs_timeout:
-        print(f"• {message}", file=sys.stderr)
-        sys.exit(2)
+    current_timeout = tool_input.get("timeout")
+    required_timeout, timeout_explanation = check_timeout_requirements(
+        command,
+        current_timeout,
+        config.get("timeout_requirements", []),
+        config.get("default_timeout_ms", 120000),
+    )
 
-    # Command is allowed
+    if required_timeout is not None:
+        updated_input["timeout"] = required_timeout
+        timeout_minutes = required_timeout / 60000
+        if current_timeout is None:
+            modifications.append(
+                f"Auto-setting timeout to {timeout_minutes:.0f} minutes for this command"
+            )
+        else:
+            current_minutes = current_timeout / 60000
+            modifications.append(
+                f"Auto-increasing timeout from {current_minutes:.1f} to {timeout_minutes:.0f} minutes"
+            )
+        modifications.append(f"  Reason: {timeout_explanation}")
+
+    # Check background restrictions
+    run_in_background = tool_input.get("run_in_background", False)
+    should_fix_background, background_explanation = check_background_restrictions(
+        command, run_in_background, config.get("background_restrictions", [])
+    )
+
+    if should_fix_background:
+        updated_input["run_in_background"] = False
+        modifications.append("Auto-changing to run in foreground (not background)")
+        modifications.append(f"  Reason: {background_explanation}")
+
+    # If we have modifications, output them
+    if updated_input:
+        if use_updated_input:
+            # Use updatedInput feature (currently broken in Claude Code v2.0.34)
+            output = {
+                "hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "permissionDecision": "allow",
+                    "permissionDecisionReason": "\n".join(modifications),
+                    "updatedInput": updated_input,
+                }
+            }
+            print(json.dumps(output, indent=2))
+            sys.exit(0)
+        else:
+            # Fallback: Block with suggestions since updatedInput doesn't work
+            suggestion_lines = ["Command needs modifications:"]
+            suggestion_lines.extend(modifications)
+            suggestion_lines.append("\nSuggested command:")
+
+            # Build the suggested command
+            suggested_cmd = updated_input.get("command", command)
+            suggestion_lines.append(f"  {suggested_cmd}")
+
+            # Add timeout suggestion if present
+            if "timeout" in updated_input:
+                timeout_val = updated_input["timeout"]
+                suggestion_lines.append(f"  timeout: {timeout_val}")
+
+            # Add background suggestion if present
+            if "run_in_background" in updated_input:
+                bg_val = updated_input["run_in_background"]
+                suggestion_lines.append(f"  run_in_background: {bg_val}")
+
+            print("• " + "\n• ".join(suggestion_lines), file=sys.stderr)
+            sys.exit(2)
+
+    # No changes needed, allow as-is
     sys.exit(0)
 
 

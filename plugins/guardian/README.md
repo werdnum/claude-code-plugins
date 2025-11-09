@@ -10,6 +10,18 @@ Ensures code quality through test verification, pre-commit review workflows, and
 
 All features are individually toggleable via configuration.
 
+## Prerequisites
+
+- **uv**: Required for running hook scripts with PEP 723 inline dependencies
+  ```bash
+  # Install uv
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  ```
+- **Python 3.11+**: Available on system (uv will use it automatically)
+- **Optional**: Project scripts with their own dependencies
+  - `scripts/review-changes.py` requires `llm`, `llm-gemini`, `llm-openrouter` (has PEP 723 annotations)
+  - Install via: `uv pip install llm llm-gemini llm-openrouter`
+
 ## Installation
 
 ```bash

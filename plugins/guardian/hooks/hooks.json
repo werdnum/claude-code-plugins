@@ -10,7 +10,7 @@
         },
         {
           "type": "command",
-          "command": "/usr/bin/env python3 ${CLAUDE_PLUGIN_ROOT}/scripts/review-workflow-hook.py",
+          "command": "uv run ${CLAUDE_PLUGIN_ROOT}/scripts/review-workflow-hook.py",
           "timeout": 300000
         }
       ]
