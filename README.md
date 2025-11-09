@@ -67,9 +67,23 @@ These plugins solve real development workflow challenges:
 /plugin list
 ```
 
-### 4. Configure (Optional)
+### 4. Bootstrap Configuration (Recommended)
 
-Each plugin works out of the box with sensible defaults. To customize:
+Use the `/bootstrap-plugins` command to automatically configure all plugins:
+
+```bash
+/bootstrap-plugins
+```
+
+This command will:
+- Auto-detect your project type and characteristics
+- Ask a few critical configuration questions
+- Generate optimal configurations for all plugins
+- Set up the marketplace in `.claude/settings.json`
+
+### 5. Manual Configuration (Alternative)
+
+If you prefer manual setup, each plugin works out of the box with sensible defaults. To customize:
 
 ```bash
 # Create project-specific config
@@ -176,6 +190,7 @@ Collection of specialized AI agents for focused development tasks.
 - **parallel-coder**: Coordinating parallel development
 
 **Included Commands**:
+- **/bootstrap-plugins**: Auto-configure all plugins for your project
 - **/test**: Run tests and display output
 
 **Use Cases**:
@@ -318,7 +333,49 @@ You should see all installed plugins with their status (enabled/disabled).
 
 ## Usage Examples
 
-### Example 1: Preventing Dangerous Commands
+### Example 1: Bootstrapping Plugin Configuration
+
+**Scenario**: Setting up a new Python project with all plugins
+
+```bash
+# After installing plugins
+/bootstrap-plugins
+```
+
+**Interactive prompts**:
+```
+Q: Should commits to the main branch be blocked?
+A: Enable protection
+
+Q: How strict should test verification be?
+A: Strict - Always require tests before commits
+
+Q: Enable LLM code review before commits?
+A: Enable code review
+
+Q: How thorough should completion checks be?
+A: Strict - Verify formatting, tests, and commits
+```
+
+**Result**:
+```
+✅ Detected Configuration:
+   - Language: Python (pytest detected)
+   - Test command: pytest
+   - Virtual environment: .venv/
+   - Pre-commit framework: pre-commit
+   - Main branch: main
+
+✅ Files Created/Updated:
+   - .claude/settings.json (marketplace + plugins enabled)
+   - .claude/bash-guard.json (branch protection + timeouts)
+   - .claude/format-lint.json (Python tools enabled)
+   - .claude/guardian.json (test verification configured)
+
+✅ All plugins configured and ready to use!
+```
+
+### Example 2: Preventing Dangerous Commands
 
 **Scenario**: Prevent accidental deletion of entire filesystem
 
@@ -609,3 +666,4 @@ Extracted from real-world usage in:
 - **websidian**: Angular application
 
 These plugins represent patterns that proved valuable across multiple projects and are now available for reuse.
+

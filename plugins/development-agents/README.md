@@ -99,6 +99,32 @@ Use for coordinating parallel development across multiple independent tasks.
 
 ## Commands
 
+### /bootstrap-plugins
+
+Automatically configures all claude-code-plugins for your project through intelligent auto-detection and minimal user interaction.
+
+```
+/bootstrap-plugins
+```
+
+**What it does**:
+- Auto-detects project characteristics (languages, test commands, pre-commit frameworks, etc.)
+- Asks critical configuration questions (branch protection, test verification, code review)
+- Generates/updates configuration files for all plugins:
+  - `.claude/settings.json` - Marketplace and plugin enablement
+  - `.claude/bash-guard.json` - Command safety and timeouts
+  - `.claude/format-lint.json` - Formatting and linting
+  - `.claude/guardian.json` - Test verification and workflows
+- Intelligently merges with existing configurations
+
+**Supported pre-commit frameworks**:
+- Python's pre-commit (`.pre-commit-config.yaml`)
+- Husky (`.husky/`, `package.json`)
+- Lefthook (`lefthook.yml`)
+- Manual git hooks
+
+**When to use**: Run once when setting up a new project to bootstrap all plugin configurations.
+
 ### /test
 
 Runs tests and sends output to Claude.
@@ -129,3 +155,4 @@ Agents are stateless - they complete a task and return results. For complex mult
 ## No Configuration Needed
 
 All agents are prompt-based and work out of the box. No configuration files required.
+
