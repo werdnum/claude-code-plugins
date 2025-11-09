@@ -2,7 +2,9 @@
   "name": "format-and-lint",
   "version": "1.0.0",
   "description": "Auto-format and lint files after edits with support for Python, TypeScript, and Angular",
-  "author": "Andrew Perry",
-  "tags": ["formatting", "linting", "code-quality", "hooks"],
-  "hooks": "hooks/hooks.json"
+  "author": {
+    "name": "Andrew Garrett",
+    "email": "andrewgarrett@google.com"
+  },
+  "hooks": "./hooks/hooks.json"
 }

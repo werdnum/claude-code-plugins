@@ -2,7 +2,9 @@
   "name": "guardian",
   "version": "1.0.0",
   "description": "Test verification, pre-commit review workflow, and stop validation to ensure code quality",
-  "author": "Andrew Perry",
-  "tags": ["testing", "review", "quality", "hooks", "validation"],
-  "hooks": "hooks/hooks.json"
+  "author": {
+    "name": "Andrew Garrett",
+    "email": "andrewgarrett@google.com"
+  },
+  "hooks": "./hooks/hooks.json"
 }

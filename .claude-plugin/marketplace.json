@@ -1,8 +1,8 @@
 {
   "name": "claude-code-plugins",
   "owner": {
-    "name": "Andrew's Personal Plugins",
-    "email": "noreply@example.com"
+    "name": "Andrew Garrett",
+    "email": "andrewgarrett@google.com"
   },
   "plugins": [
     {
