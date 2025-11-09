@@ -1,28 +1,31 @@
 {
   "name": "claude-code-plugins",
-  "owner": "Andrew's Personal Plugins",
+  "owner": {
+    "name": "Andrew's Personal Plugins",
+    "email": "noreply@example.com"
+  },
   "plugins": [
     {
       "name": "bash-guard",
-      "path": "plugins/bash-guard",
+      "source": "./plugins/bash-guard",
       "version": "1.0.0",
       "description": "Safety checks for Bash commands with auto-fix suggestions - prevents dangerous operations, enforces timeouts, blocks commits to main branch, and suggests command rewrites"
     },
     {
       "name": "format-and-lint",
-      "path": "plugins/format-and-lint",
+      "source": "./plugins/format-and-lint",
       "version": "1.0.0",
       "description": "Auto-format and lint files after edits with support for Python, TypeScript, and Angular"
     },
     {
       "name": "guardian",
-      "path": "plugins/guardian",
+      "source": "./plugins/guardian",
       "version": "1.0.0",
       "description": "Test verification, pre-commit review workflow, and stop validation to ensure code quality"
     },
     {
       "name": "development-agents",
-      "path": "plugins/development-agents",
+      "source": "./plugins/development-agents",
       "version": "1.0.0",
       "description": "Collection of specialized development agents and commands for common workflows"
     }
