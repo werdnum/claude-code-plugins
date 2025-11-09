@@ -6,6 +6,28 @@
 
 set -euo pipefail
 
+# Load configuration to check if test verification is enabled
+CONFIG_PATHS=(
+    "${CLAUDE_PLUGIN_ROOT}/config/guardian-config.json"
+    "$HOME/.config/claude-code/guardian.json"
+    "$(pwd)/.claude/guardian.json"
+)
+
+ENABLED=false
+for config_path in "${CONFIG_PATHS[@]}"; do
+    if [ -f "$config_path" ]; then
+        ENABLED=$(jq -r '.testVerification.enabled // false' "$config_path")
+        if [ "$ENABLED" = "true" ]; then
+            break
+        fi
+    fi
+done
+
+# Exit early if test verification is disabled
+if [ "$ENABLED" != "true" ]; then
+    exit 0
+fi
+
 # Skip verification when running in remote Claude Code session (can't run full test suite due to resource constraints)
 if [ "${CLAUDE_CODE_REMOTE:-false}" = "true" ]; then
     exit 0

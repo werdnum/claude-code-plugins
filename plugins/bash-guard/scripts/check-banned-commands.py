@@ -24,7 +24,7 @@ def load_config() -> dict:
     plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", os.path.dirname(__file__))
 
     config_locations = [
-        os.path.join(plugin_root, "..", "config", "bash-guard-config.json"),
+        os.path.join(plugin_root, "config", "bash-guard-config.json"),
         os.path.expanduser("~/.config/claude-code/bash-guard.json"),
         os.path.join(os.getcwd(), ".claude", "bash-guard.json"),
     ]
@@ -268,3 +268,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
