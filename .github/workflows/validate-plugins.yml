@@ -17,8 +17,8 @@ jobs:
 
       - name: Install Claude Code CLI
         run: |
-          # Download and install the Claude Code CLI
-          curl -fsSL https://raw.githubusercontent.com/anthropics/claude-code/main/install.sh | sh
+          # Download and install the Claude Code CLI (native installation)
+          curl -fsSL https://claude.ai/install.sh | bash
 
           # Add to PATH for subsequent steps
           echo "$HOME/.claude/bin" >> $GITHUB_PATH
