@@ -1,0 +1,87 @@
+name: Validate Plugins
+
+on:
+  push:
+    branches: [ main, master, 'claude/**' ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  validate:
+    name: Validate Plugin Manifests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Claude Code CLI
+        run: |
+          # Download and install the Claude Code CLI
+          curl -fsSL https://raw.githubusercontent.com/anthropics/claude-code/main/install.sh | sh
+
+          # Add to PATH for subsequent steps
+          echo "$HOME/.claude/bin" >> $GITHUB_PATH
+
+      - name: Verify Claude CLI installation
+        run: |
+          claude --version
+
+      - name: Validate marketplace manifest
+        run: |
+          echo "Validating marketplace manifest..."
+          if [ ! -f ".claude-plugin/marketplace.json" ]; then
+            echo "Error: marketplace.json not found"
+            exit 1
+          fi
+
+          # Basic JSON validation
+          if ! jq empty .claude-plugin/marketplace.json 2>/dev/null; then
+            echo "Error: marketplace.json is not valid JSON"
+            exit 1
+          fi
+
+          echo "✓ Marketplace manifest is valid JSON"
+
+      - name: Validate all plugins
+        run: |
+          # Read plugin directories from marketplace.json
+          PLUGIN_DIRS=$(jq -r '.plugins[].source' .claude-plugin/marketplace.json)
+
+          echo "Found plugins to validate:"
+          echo "$PLUGIN_DIRS"
+          echo ""
+
+          FAILED=0
+          for plugin_dir in $PLUGIN_DIRS; do
+            echo "----------------------------------------"
+            echo "Validating plugin: $plugin_dir"
+            echo "----------------------------------------"
+
+            if [ ! -d "$plugin_dir" ]; then
+              echo "Error: Plugin directory not found: $plugin_dir"
+              FAILED=1
+              continue
+            fi
+
+            if ! claude plugin validate "$plugin_dir"; then
+              echo "✗ Validation failed for: $plugin_dir"
+              FAILED=1
+            else
+              echo "✓ Validation successful for: $plugin_dir"
+            fi
+            echo ""
+          done
+
+          if [ $FAILED -eq 1 ]; then
+            echo "❌ One or more plugins failed validation"
+            exit 1
+          else
+            echo "✅ All plugins validated successfully!"
+          fi
+
+      - name: Summary
+        if: success()
+        run: |
+          PLUGIN_COUNT=$(jq '.plugins | length' .claude-plugin/marketplace.json)
+          echo "✅ Successfully validated $PLUGIN_COUNT plugin(s) in the marketplace"

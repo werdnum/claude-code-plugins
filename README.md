@@ -11,6 +11,7 @@ Personal collection of Claude Code plugins for development workflows, extracted 
 - [Plugin Comparison](#plugin-comparison)
 - [Installation Guide](#installation-guide)
 - [Usage Examples](#usage-examples)
+- [Continuous Integration](#continuous-integration)
 - [Development](#development)
 - [Architecture](#architecture)
 - [Contributing](#contributing)
@@ -472,6 +473,38 @@ export ONESHOT_MODE=true
 # ✓ Tests passing
 
 # Only allows exit when ALL requirements met
+```
+
+## Continuous Integration
+
+### Plugin Validation
+
+![Validate Plugins](https://github.com/werdnum/claude-code-plugins/actions/workflows/validate-plugins.yml/badge.svg)
+
+This repository includes automated CI that validates all plugins on every push and pull request.
+
+**What Gets Validated**:
+- ✅ Marketplace manifest (`.claude-plugin/marketplace.json`) is valid JSON
+- ✅ All plugins listed in the marketplace exist
+- ✅ Each plugin passes `claude plugin validate` checks
+- ✅ Plugin manifests are well-formed and complete
+
+**Workflow**: [`.github/workflows/validate-plugins.yml`](.github/workflows/validate-plugins.yml)
+
+**When It Runs**:
+- Every push to `main`, `master`, or `claude/**` branches
+- Every pull request to `main` or `master`
+
+**Local Validation**:
+```bash
+# Validate a specific plugin
+claude plugin validate plugins/bash-guard
+
+# Validate all plugins
+for plugin in plugins/*/; do
+  echo "Validating $plugin..."
+  claude plugin validate "$plugin"
+done
 ```
 
 ## Development
