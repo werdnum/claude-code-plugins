@@ -48,7 +48,7 @@ if [ "$ONESHOT_MODE" = "true" ]; then
     issues=()
     
     # Check if we're in a git repository
-    if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    if ! git rev-parse --is-inside-work-tree >/dev/null; then
         issues+=("❌ Not inside a git repository - You MUST initialize git and commit all work")
     else
         # Only do git-related checks if we're in a repository
