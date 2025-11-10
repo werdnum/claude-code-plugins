@@ -93,7 +93,13 @@ This ensures that sub-conversations ('subagents') do not 'leak' up into the main
 
 ## Step 6: Create Pull Request
 
-Unless otherwise requested by the user, create a Pull Request with:
+First, check if we're running in a Claude Code remote instance:
+
+!`echo $CLAUDE_CODE_REMOTE`
+
+If `$CLAUDE_CODE_REMOTE` is set (non-empty), **skip PR creation** as the `gh` CLI is not available in remote instances. Instead, inform the user that the changes have been pushed and provide the URL for creating the PR manually (this should be shown in the git push output).
+
+If `$CLAUDE_CODE_REMOTE` is NOT set (empty or undefined), and unless otherwise requested by the user, create a Pull Request with:
 
 - A title that summarizes the change (similar to the commit message first line)
 - A description that includes:
