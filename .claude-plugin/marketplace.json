@@ -28,6 +28,12 @@
       "source": "./plugins/development-agents",
       "version": "1.0.0",
       "description": "Collection of specialized development agents and commands for common workflows"
+    },
+    {
+      "name": "python-utils",
+      "source": "./plugins/python-utils",
+      "version": "1.0.0",
+      "description": "Python development utilities including advanced refactoring capabilities with rope"
     }
   ]
 }
