@@ -1,0 +1,16 @@
+{
+  "extraKnownMarketplaces": {
+    "claude-code-plugins": {
+      "source": {
+        "source": "local",
+        "path": "."
+      }
+    }
+  },
+  "enabledPlugins": [
+    "bash-guard@claude-code-plugins",
+    "format-and-lint@claude-code-plugins",
+    "guardian@claude-code-plugins",
+    "development-agents@claude-code-plugins"
+  ]
+}
