@@ -14,5 +14,12 @@ Thumbs.db
 # Node modules (if any plugins use npm)
 node_modules/
 
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
 # Logs
 *.log
