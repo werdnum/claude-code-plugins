@@ -1,6 +1,6 @@
 # bash-guard
 
-Safety checks for Bash commands in Claude Code - prevents dangerous operations, enforces timeouts, and blocks commits to protected branches.
+Safety checks for Bash commands in Claude Code - prevents dangerous operations, enforces timeouts, blocks commits to protected branches, and rate limits BashOutput polling.
 
 ## Table of Contents
 
@@ -17,9 +17,9 @@ Safety checks for Bash commands in Claude Code - prevents dangerous operations, 
 
 ## Overview
 
-bash-guard is a PreToolUse hook plugin that intercepts Bash tool calls before execution, checking them against configurable safety rules. It acts as a safety net to prevent dangerous commands, enforce git workflow conventions, and ensure adequate timeouts for long-running operations.
+bash-guard is a PreToolUse hook plugin that intercepts Bash and BashOutput tool calls before execution, checking them against configurable safety rules. It acts as a safety net to prevent dangerous commands, enforce git workflow conventions, ensure adequate timeouts for long-running operations, and prevent excessive polling of background processes.
 
-**Hook Type**: PreToolUse (Bash)
+**Hook Type**: PreToolUse (Bash, BashOutput)
 **Blocks Execution**: Yes
 **Configuration File**: `bash-guard.json`
 
@@ -70,7 +70,17 @@ Prevent specific commands from running in background:
 - Custom patterns for project-specific restrictions
 - Ensures critical operations complete before continuing
 
-### 5. Auto-Fix / Suggestion Mode
+### 5. BashOutput Rate Limiting
+
+Prevent excessive polling of background process output:
+
+- Limits BashOutput calls to 2 per minute
+- Limits BashOutput calls to 3 per 5 minutes
+- Prevents unnecessary resource consumption from rapid polling
+- Configurable thresholds and can be disabled if needed
+- Uses transcript analysis to track call frequency
+
+### 6. Auto-Fix / Suggestion Mode
 
 bash-guard can suggest command modifications instead of just blocking:
 
@@ -275,6 +285,48 @@ Create `.claude/bash-guard.json` in your project:
 - `regexp` (string): Pattern to match commands that should not run in background
 - `explanation` (string): Explanation shown when command is run in background
 
+#### BashOutput Rate Limiting
+
+```json
+{
+  "bashoutput_rate_limit": {
+    "enabled": true,
+    "max_calls_per_minute": 2,
+    "max_calls_per_5_minutes": 3
+  }
+}
+```
+
+**Options**:
+- `enabled` (boolean): Enable or disable BashOutput rate limiting (default: true)
+- `max_calls_per_minute` (number): Maximum BashOutput calls allowed per minute (default: 2)
+- `max_calls_per_5_minutes` (number): Maximum BashOutput calls allowed per 5 minutes (default: 3)
+
+**Use cases**:
+- Prevent Claude from rapidly polling background processes
+- Reduce unnecessary resource consumption
+- Encourage proper wait strategies for long-running commands
+
+**To disable rate limiting**:
+```json
+{
+  "bashoutput_rate_limit": {
+    "enabled": false
+  }
+}
+```
+
+**To adjust thresholds**:
+```json
+{
+  "bashoutput_rate_limit": {
+    "enabled": true,
+    "max_calls_per_minute": 5,
+    "max_calls_per_5_minutes": 10
+  }
+}
+```
+
 ## Usage Examples
 
 ### Example 1: Preventing System Damage
@@ -334,6 +386,23 @@ Create `.claude/bash-guard.json`:
 ```
 
 Now bash-guard enforces your project-specific conventions!
+
+### Example 5: BashOutput Rate Limiting
+
+```bash
+Claude attempts: BashOutput for background shell (3rd call in 1 minute)
+
+Result: ❌ Blocked
+• BashOutput rate limit exceeded: 3 calls in the last minute (maximum: 2).
+  Please wait before checking output again.
+  Excessive polling can slow down Claude Code and consume unnecessary resources.
+```
+
+**Why this helps**:
+- Prevents rapid polling loops
+- Encourages waiting for processes to complete naturally
+- Reduces transcript size and processing overhead
+- Improves overall session performance
 
 ## Advanced Configuration
 
@@ -634,6 +703,13 @@ interface BashGuardConfig {
     regexp: string;                   // Pattern to match
     explanation: string;              // Explanation shown when run in background
   }>;
+
+  // BashOutput rate limiting
+  bashoutput_rate_limit?: {
+    enabled?: boolean;                // Enable rate limiting (default: true)
+    max_calls_per_minute?: number;    // Max calls per minute (default: 2)
+    max_calls_per_5_minutes?: number; // Max calls per 5 minutes (default: 3)
+  };
 }
 ```
 

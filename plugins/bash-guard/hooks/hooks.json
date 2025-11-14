@@ -13,6 +13,15 @@
             "command": "uv run ${CLAUDE_PLUGIN_ROOT}/scripts/check-main-branch-commit.py"
           }
         ]
+      },
+      {
+        "matcher": "BashOutput",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run ${CLAUDE_PLUGIN_ROOT}/scripts/check-bashoutput-rate-limit.py"
+          }
+        ]
       }
     ]
   }

@@ -36,5 +36,11 @@
       "regexp": "^poe\\s+test\\b",
       "explanation": "poe test must run in foreground to ensure proper output capture and test result visibility"
     }
-  ]
+  ],
+  "bashoutput_rate_limit": {
+    "enabled": true,
+    "max_calls_per_minute": 2,
+    "max_calls_per_5_minutes": 3,
+    "comment": "Rate limiting for BashOutput tool to prevent excessive polling. Limits: 2 calls/minute, 3 calls/5 minutes."
+  }
 }
