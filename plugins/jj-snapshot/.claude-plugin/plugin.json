@@ -1,0 +1,9 @@
+{
+  "name": "jj-snapshot",
+  "version": "1.0.0",
+  "description": "Automatically snapshot repository state with Jujutsu (jj) after each file edit",
+  "author": {
+    "name": "Andrew Garrett",
+    "email": "andrewgarrett@google.com"
+  }
+}

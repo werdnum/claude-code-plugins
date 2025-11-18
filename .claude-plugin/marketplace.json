@@ -34,6 +34,12 @@
       "source": "./plugins/python-utils",
       "version": "1.0.0",
       "description": "Python development utilities including advanced refactoring capabilities with rope"
+    },
+    {
+      "name": "jj-snapshot",
+      "source": "./plugins/jj-snapshot",
+      "version": "1.0.0",
+      "description": "Automatically snapshot repository state with Jujutsu (jj) after each file edit"
     }
   ]
 }
