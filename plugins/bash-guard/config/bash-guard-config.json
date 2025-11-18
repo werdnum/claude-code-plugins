@@ -17,6 +17,11 @@
       "regexp": "^\\s*cd\\s+",
       "action": "block",
       "explanation": "Using cd changes the working directory for all subsequent commands. If you need to run commands in a different directory, use a subshell like: (cd /path && command) or use absolute paths."
+    },
+    {
+      "regexp": "\\bjj\\s+bookmark\\s+set\\s+(main|master)\\b",
+      "action": "block",
+      "explanation": "Direct modification of protected bookmarks (main/master) is not allowed. This is equivalent to pushing to protected branches in git. Please create a feature bookmark instead and submit changes through proper review workflow."
     }
   ],
   "timeout_requirements": [
