@@ -1,8 +1,4 @@
-#!/usr/bin/env -S uv run
-# /// script
-# requires-python = ">=3.11"
-# dependencies = []
-# ///
+#!/usr/bin/env python3
 """
 PreToolUse hook script to check Bash commands against configuration rules.
 Uses updatedInput feature to auto-fix commands where possible.

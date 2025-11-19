@@ -11,7 +11,7 @@
           },
           {
             "type": "command",
-            "command": "uv run ${CLAUDE_PLUGIN_ROOT}/scripts/review-workflow-hook.py",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/review-workflow-hook.py",
             "timeout": 300000
           }
         ]

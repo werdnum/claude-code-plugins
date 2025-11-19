@@ -6,11 +6,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uv run ${CLAUDE_PLUGIN_ROOT}/scripts/check-banned-commands.py"
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/check-banned-commands.py"
           },
           {
             "type": "command",
-            "command": "uv run ${CLAUDE_PLUGIN_ROOT}/scripts/check-main-branch-commit.py"
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/check-main-branch-commit.py"
           }
         ]
       },
@@ -19,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uv run ${CLAUDE_PLUGIN_ROOT}/scripts/check-bashoutput-rate-limit.py"
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/check-bashoutput-rate-limit.py"
           }
         ]
       }

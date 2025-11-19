@@ -1,8 +1,4 @@
-#!/usr/bin/env -S uv run
-# /// script
-# requires-python = ">=3.11"
-# dependencies = []
-# ///
+#!/usr/bin/env python3
 """
 PreToolUse hook script to rate limit BashOutput calls.
 Prevents reading BashOutput too frequently to avoid excessive polling.

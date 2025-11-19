@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uv run ${CLAUDE_PLUGIN_ROOT}/scripts/format-and-lint.py",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/format-and-lint.py",
             "timeout": 15000
           }
         ]
