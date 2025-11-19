@@ -1,8 +1,4 @@
-#!/usr/bin/env -S uv run
-# /// script
-# requires-python = ">=3.11"
-# dependencies = []
-# ///
+#!/usr/bin/env python3
 """
 Pre-commit hook for code review using the review-changes.sh script.
 Handles formatting/linting, running the review, and processing the results.
