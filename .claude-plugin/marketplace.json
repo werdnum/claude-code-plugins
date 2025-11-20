@@ -18,6 +18,12 @@
       "description": "Auto-format and lint files after edits with support for Python, TypeScript, and Angular"
     },
     {
+      "name": "linter-ignore-guard",
+      "source": "./plugins/linter-ignore-guard",
+      "version": "1.0.0",
+      "description": "Discourages silencing linter warnings without proper justification"
+    },
+    {
       "name": "guardian",
       "source": "./plugins/guardian",
       "version": "1.0.0",

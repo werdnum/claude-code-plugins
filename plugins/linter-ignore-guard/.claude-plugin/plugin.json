@@ -1,0 +1,9 @@
+{
+  "name": "linter-ignore-guard",
+  "version": "1.0.0",
+  "description": "Discourages silencing linter warnings without proper justification",
+  "author": {
+    "name": "Andrew Garrett",
+    "email": "andrewgarrett@google.com"
+  }
+}
