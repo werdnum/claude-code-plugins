@@ -8,9 +8,28 @@ Auto-format and lint files after edits with support for Python, TypeScript/JavaS
 - **Python Linting**: ruff (format + check), basedpyright, ast-grep conformance/hints
 - **TypeScript Linting**: prettier, eslint (for `frontend/` directory)
 - **Angular Linting**: prettier, eslint (for `app/` directory)
+- **Linter Ignore Guard**: Discourages silencing linter warnings without proper justification
 - **Informational Only**: PostToolUse hooks don't block - they provide feedback
 
 All features are individually toggleable via configuration.
+
+### Linter Ignore Guard
+
+Automatically detects when linter ignore comments are added (such as `type: ignore`, `noqa`, `eslint-disable`, `@ts-ignore`, etc.) and provides educational feedback encouraging developers to:
+
+1. **Fix the underlying issue** (always preferred)
+2. **Add clear justification** if suppression is truly necessary
+
+Supports multiple languages and tools:
+- Python: `type: ignore`, `noqa`, `pylint: disable`, `fmt: off`
+- TypeScript/JavaScript: `@ts-ignore`, `@ts-expect-error`, `eslint-disable`, `prettier-ignore`
+- Rust: `#[allow(`, `rustfmt::skip`
+- Go: `nolint`
+- Ruby: `rubocop:disable`
+- Java: `@SuppressWarnings`
+- General: `ast-grep-ignore`
+
+The guard differentiates between justified and unjustified suppressions based on the presence of explanatory text containing keywords like "because", "workaround", "third-party", etc.
 
 ## Prerequisites
 
