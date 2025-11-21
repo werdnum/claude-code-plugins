@@ -14,6 +14,39 @@ import re
 import sys
 
 
+def deep_merge_config(base: dict, overlay: dict) -> dict:
+    """
+    Deep merge two configuration dictionaries.
+
+    Array fields (command_rules, timeout_requirements, background_restrictions)
+    are concatenated to allow extending defaults rather than replacing them.
+
+    Dict fields are recursively merged.
+    Scalar fields are replaced (overlay wins).
+    """
+    result = base.copy()
+
+    # Array fields that should be concatenated
+    array_fields = {"command_rules", "timeout_requirements", "background_restrictions"}
+
+    for key, overlay_value in overlay.items():
+        if key in array_fields and isinstance(overlay_value, list):
+            # Concatenate arrays to extend defaults
+            base_value = result.get(key, [])
+            if isinstance(base_value, list):
+                result[key] = base_value + overlay_value
+            else:
+                result[key] = overlay_value
+        elif isinstance(overlay_value, dict) and key in result and isinstance(result[key], dict):
+            # Recursively merge dicts
+            result[key] = deep_merge_config(result[key], overlay_value)
+        else:
+            # Replace scalar values
+            result[key] = overlay_value
+
+    return result
+
+
 def load_config() -> dict:
     """Load and parse the bash-guard-config.json configuration file."""
     # Try layered config loading: plugin defaults → global → project
@@ -34,8 +67,8 @@ def load_config() -> dict:
             try:
                 with open(config_path, encoding="utf-8") as f:
                     layer_config = json.load(f)
-                    # Deep merge (simple version - replace entire keys)
-                    config.update(layer_config)
+                    # Deep merge with proper array concatenation
+                    config = deep_merge_config(config, layer_config)
             except (FileNotFoundError, json.JSONDecodeError):
                 continue
 
