@@ -8,6 +8,7 @@ Exit codes:
 - 2: Block (with explanation via stderr)
 """
 
+import copy
 import json
 import os
 import re
@@ -24,7 +25,7 @@ def deep_merge_config(base: dict, overlay: dict) -> dict:
     Dict fields are recursively merged.
     Scalar fields are replaced (overlay wins).
     """
-    result = base.copy()
+    result = copy.deepcopy(base)
 
     # Array fields that should be concatenated
     array_fields = {"command_rules", "timeout_requirements", "background_restrictions"}
