@@ -17,7 +17,10 @@ import sys
 def load_config() -> dict:
     """Load and parse the bash-guard-config.json configuration file."""
     # Try layered config loading: plugin defaults → global → project
-    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", os.path.dirname(__file__))
+    plugin_root = os.environ.get(
+        "CLAUDE_PLUGIN_ROOT",
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    )
 
     config_locations = [
         os.path.join(plugin_root, "config", "bash-guard-config.json"),
