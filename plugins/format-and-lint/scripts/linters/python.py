@@ -29,6 +29,9 @@ def expand_shell_var(template: str) -> str:
     - ${VAR:-default}: Use VAR if set and non-empty, otherwise use default
     - ${VAR}: Use VAR if set, otherwise empty string
     - $VAR: Use VAR if set, otherwise empty string
+
+    Note: For more complex bash expansion needs (e.g., ${VAR:+value}, ${VAR:?error}),
+    consider using the 'expandvars' library from PyPI instead of extending this function.
     """
     # Handle ${VAR:-default} syntax
     def replace_with_default(match: re.Match[str]) -> str:
