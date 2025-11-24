@@ -3,6 +3,7 @@
 import asyncio
 import json
 import os
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,6 +19,37 @@ class LintResult:
     output: str = ""
     error: str = ""
     auto_fixable: bool = False
+
+
+def expand_shell_var(template: str) -> str:
+    """
+    Expand shell-style variable syntax like ${VAR:-default}.
+
+    Supports:
+    - ${VAR:-default}: Use VAR if set and non-empty, otherwise use default
+    - ${VAR}: Use VAR if set, otherwise empty string
+    - $VAR: Use VAR if set, otherwise empty string
+    """
+    # Handle ${VAR:-default} syntax
+    def replace_with_default(match: re.Match[str]) -> str:
+        var_name = match.group(1)
+        default = match.group(2)
+        value = os.environ.get(var_name, "").strip()
+        return value if value else default
+
+    result = re.sub(r'\$\{([^:}]+):-([^}]*)\}', replace_with_default, template)
+
+    # Handle ${VAR} syntax
+    def replace_simple(match: re.Match[str]) -> str:
+        var_name = match.group(1)
+        return os.environ.get(var_name, "")
+
+    result = re.sub(r'\$\{([^}]+)\}', replace_simple, result)
+
+    # Handle $VAR syntax
+    result = re.sub(r'\$([A-Z_][A-Z0-9_]*)', lambda m: os.environ.get(m.group(1), ""), result)
+
+    return result
 
 
 async def run_command(cmd: list[str], timeout: float = 5.0) -> tuple[int, str, str, float]:
@@ -145,8 +177,7 @@ async def run_ruff_format(file_path: str, config: dict[str, Any]) -> LintResult:
     if not ruff_format_config.get("enabled", True):
         return LintResult("ruff format", True, 0.0)
 
-    venv = config.get("venvPath", "${VIRTUAL_ENV:-.venv}")
-    venv = venv.replace("${VIRTUAL_ENV", os.environ.get("VIRTUAL_ENV", ".venv")).replace("}", "")
+    venv = expand_shell_var(config.get("venvPath", "${VIRTUAL_ENV:-.venv}"))
 
     command_template = ruff_format_config.get("command", "{venv}/bin/ruff format {file}")
     command = command_template.replace("{venv}", venv).replace("{file}", file_path)
@@ -169,8 +200,7 @@ async def run_ruff_check(file_path: str, config: dict[str, Any]) -> LintResult:
     if not ruff_check_config.get("enabled", True):
         return LintResult("ruff check", True, 0.0)
 
-    venv = config.get("venvPath", "${VIRTUAL_ENV:-.venv}")
-    venv = venv.replace("${VIRTUAL_ENV", os.environ.get("VIRTUAL_ENV", ".venv")).replace("}", "")
+    venv = expand_shell_var(config.get("venvPath", "${VIRTUAL_ENV:-.venv}"))
 
     command_template = ruff_check_config.get("command", "{venv}/bin/ruff check --preview --ignore=E501 {file}")
     command = command_template.replace("{venv}", venv).replace("{file}", file_path)
@@ -202,8 +232,7 @@ async def run_basedpyright(file_path: str, config: dict[str, Any]) -> LintResult
     if not pyright_config.get("enabled", True):
         return LintResult("basedpyright", True, 0.0)
 
-    venv = config.get("venvPath", "${VIRTUAL_ENV:-.venv}")
-    venv = venv.replace("${VIRTUAL_ENV", os.environ.get("VIRTUAL_ENV", ".venv")).replace("}", "")
+    venv = expand_shell_var(config.get("venvPath", "${VIRTUAL_ENV:-.venv}"))
 
     command_template = pyright_config.get("command", "{venv}/bin/basedpyright {file}")
     command = command_template.replace("{venv}", venv).replace("{file}", file_path)
