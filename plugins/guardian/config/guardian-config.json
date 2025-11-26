@@ -123,8 +123,14 @@
       "comment_uncommittedChanges": "How to handle uncommitted changes: 'ignore', 'warn', or 'error'",
       "unpushedCommits": "warn",
       "comment_unpushedCommits": "How to handle unpushed commits: 'ignore', 'warn', or 'error'",
-      "testStatus": "warn",
-      "comment_testStatus": "How to handle missing test runs: 'ignore', 'warn', or 'error'",
+
+      "testVerification": {
+        "description": "How to handle missing test runs. Leverages the same logic as the pre-commit test verification hook.",
+        "enabled": false,
+        "level": "warn",
+        "comment_level": "Behavior on failure: 'warn' or 'error'. Note: This check uses the main 'testVerification' section for its core configuration (test commands, excludes, etc.)."
+      },
+
       "checkRequestFulfilled": true,
       "comment_checkRequestFulfilled": "Warn if user request doesn't appear to be fulfilled"
     },

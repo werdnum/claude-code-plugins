@@ -6,30 +6,25 @@
 
 set -euo pipefail
 
-# Load configuration to check if test verification is enabled
-CONFIG_PATHS=(
-    "${CLAUDE_PLUGIN_ROOT}/config/guardian-config.json"
-    "$HOME/.config/claude-code/guardian.json"
-    "$(pwd)/.claude/guardian.json"
-)
+# Source the core test verification logic
+source "${CLAUDE_PLUGIN_ROOT}/scripts/test-verification-core.sh"
 
-ENABLED=false
-for config_path in "${CONFIG_PATHS[@]}"; do
-    if [ -f "$config_path" ]; then
-        ENABLED=$(jq -r '.testVerification.enabled // false' "$config_path")
-        if [ "$ENABLED" = "true" ]; then
-            break
-        fi
-    fi
-done
+# Load merged configuration
+CONFIG=$(load_guardian_config)
+TEST_VERIFICATION_CONFIG=$(echo "$CONFIG" | jq -r '.testVerification // {}')
+ENABLED=$(echo "$TEST_VERIFICATION_CONFIG" | jq -r '.enabled // false')
 
 # Exit early if test verification is disabled
 if [ "$ENABLED" != "true" ]; then
     exit 0
 fi
 
-# Skip verification when running in remote Claude Code session (can't run full test suite due to resource constraints)
-if [ "${CLAUDE_CODE_REMOTE:-false}" = "true" ]; then
+# Skip verification when running in remote Claude Code session if configured
+SKIP_REMOTE=$(echo "$TEST_VERIFICATION_CONFIG" | jq -r '.skipInRemote // true')
+ENV_SELECTOR=$(echo "$TEST_VERIFICATION_CONFIG" | jq -r '.environmentSelector // "CLAUDE_CODE_REMOTE"')
+IS_REMOTE_ENV=${!ENV_SELECTOR:-false}
+
+if [ "$SKIP_REMOTE" = "true" ] && [ "$IS_REMOTE_ENV" = "true" ]; then
     exit 0
 fi
 
@@ -40,32 +35,28 @@ INPUT=$(cat)
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty')
 COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
 
-# Only check for specific commands that indicate completion
+# Only check for specific tool names
 if [ "$TOOL_NAME" != "Bash" ]; then
     exit 0
 fi
 
 # Check if this is one of our trigger commands
-if ! echo "$COMMAND" | grep -qE "(git commit|echo done)"; then
+TRIGGER_COMMANDS=$(echo "$TEST_VERIFICATION_CONFIG" | jq -r '.triggerCommands[]' | paste -sd '|')
+if ! echo "$COMMAND" | grep -qE "($TRIGGER_COMMANDS)"; then
     exit 0
 fi
 
 # Check if stop_hook_active is true to avoid loops
 STOP_HOOK_ACTIVE=$(echo "$INPUT" | jq -r '.stop_hook_active // false')
 if [ "$STOP_HOOK_ACTIVE" = "true" ]; then
-    # Skip verification if we're already in a stop hook to avoid loops
     exit 0
 fi
-
-# Source the core test verification logic
-source "${CLAUDE_PLUGIN_ROOT}/scripts/test-verification-core.sh"
 
 # Extract transcript path and call core function
 TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path // empty')
 
-if ! check_test_status "$TRANSCRIPT_PATH"; then
+if ! check_test_status "$TRANSCRIPT_PATH" "$TEST_VERIFICATION_CONFIG"; then
     exit 2  # Block the action
 fi
 
 exit 0
-
