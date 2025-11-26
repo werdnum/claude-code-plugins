@@ -48,7 +48,17 @@ check_test_status() {
 
     # --- Get configuration with defaults ---
     local ENV_SELECTOR=$(echo "$CONFIG_JSON" | jq -r '.environmentSelector // "CLAUDE_CODE_REMOTE"')
-    local IS_REMOTE_ENV=${!ENV_SELECTOR:-false}
+    local IS_REMOTE_ENV="false"
+    # Only allow known, safe environment variable names
+    case "$ENV_SELECTOR" in
+        CLAUDE_CODE_REMOTE)
+            IS_REMOTE_ENV="${CLAUDE_CODE_REMOTE:-false}"
+            ;;
+        *)
+            # Unknown selector, default to false
+            IS_REMOTE_ENV="false"
+            ;;
+    esac
 
     local TEST_COMMANDS_KEY="local"
     if [ "$IS_REMOTE_ENV" = "true" ]; then

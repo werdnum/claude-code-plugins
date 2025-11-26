@@ -22,7 +22,15 @@ fi
 # Skip verification when running in remote Claude Code session if configured
 SKIP_REMOTE=$(echo "$TEST_VERIFICATION_CONFIG" | jq -r '.skipInRemote // true')
 ENV_SELECTOR=$(echo "$TEST_VERIFICATION_CONFIG" | jq -r '.environmentSelector // "CLAUDE_CODE_REMOTE"')
-IS_REMOTE_ENV=${!ENV_SELECTOR:-false}
+case "$ENV_SELECTOR" in
+    CLAUDE_CODE_REMOTE)
+        IS_REMOTE_ENV="${CLAUDE_CODE_REMOTE:-false}"
+        ;;
+    *)
+        # Unknown or unsupported environment variable name; default to false
+        IS_REMOTE_ENV="false"
+        ;;
+esac
 
 if [ "$SKIP_REMOTE" = "true" ] && [ "$IS_REMOTE_ENV" = "true" ]; then
     exit 0
@@ -42,6 +50,9 @@ fi
 
 # Check if this is one of our trigger commands
 TRIGGER_COMMANDS=$(echo "$TEST_VERIFICATION_CONFIG" | jq -r '.triggerCommands[]' | paste -sd '|')
+if [ -z "$TRIGGER_COMMANDS" ]; then
+    exit 0
+fi
 if ! echo "$COMMAND" | grep -qE "($TRIGGER_COMMANDS)"; then
     exit 0
 fi
