@@ -16,7 +16,7 @@ JSON_INPUT=$(cat)
 # Prevent feedback loop on API errors
 TRANSCRIPT_PATH=$(echo "$JSON_INPUT" | jq -r '.transcript_path // empty')
 if [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ]; then
-    if tail -n 1 "$TRANSCRIPT_PATH" | jq -e '.isApiErrorMessage // false' > /dev/null; then
+    if [ "$(tail -n 1 "$TRANSCRIPT_PATH" | jq -r '.isApiErrorMessage // false')" = "true" ]; then
         echo "API error message detected. Exiting gracefully to prevent loop." >&2
         exit 0
     fi
@@ -35,8 +35,7 @@ ENABLED=$(echo "$STOP_VALIDATION_CONFIG" | jq -r '.enabled // false')
 ONESHOT_CONFIG=$(echo "$STOP_VALIDATION_CONFIG" | jq -r '.oneshotMode // {}')
 ONESHOT_MODE_ENABLED=$(echo "$ONESHOT_CONFIG" | jq -r '.enabled // false')
 
-# Exit early if stop validation is disabled in all modes
-if [ "$ENABLED" != "true" ] && { [ -z "$ONESHOT_MODE" ] || [ "$ONESHOT_MODE_ENABLED" != "true" ]; }; then
+if [ "$ENABLED" != "true" ] && [ "$ONESHOT_MODE_ENABLED" != "true" ]; then
     exit 0
 fi
 
@@ -121,8 +120,10 @@ add_message() {
 # 1. Format and Lint
 FORMAT_LINT_CONFIG=$(echo "$STOP_VALIDATION_CONFIG" | jq -r '.validation.formatAndLint // {}')
 if [ "$(echo "$FORMAT_LINT_CONFIG" | jq -r '.enabled // false')" = "true" ]; then
-    echo "$FORMAT_LINT_CONFIG" | jq -r '.commands[]' | while IFS= read -r cmd; do
-        if ! eval "$cmd"; then
+    mapfile -t commands < <(echo "$FORMAT_LINT_CONFIG" | jq -r '.commands[]')
+    for cmd in "${commands[@]}"; do
+        # Use bash -c instead of eval to reduce risk of code injection
+        if ! bash -c "$cmd"; then
             add_message "error" "❌ Command '$cmd' failed."
             break
         fi
@@ -133,8 +134,7 @@ fi
 UNCOMMITTED_LEVEL=$(echo "$STOP_VALIDATION_CONFIG" | jq -r '.validation.uncommittedChanges // "warn"')
 if [ "$UNCOMMITTED_LEVEL" != "ignore" ]; then
     if uncommitted_changes=$(git status --porcelain 2>/dev/null); [ -n "$uncommitted_changes" ]; then
-        msg="Uncommitted changes detected:\n$uncommitted_changes"
-        add_message "$UNCOMMITTED_LEVEL" "Uncommitted changes detected."
+        add_message "$UNCOMMITTED_LEVEL" "Uncommitted changes detected:\n$uncommitted_changes"
     fi
 fi
 
