@@ -75,6 +75,14 @@ check_test_status() {
         TEST_COMMAND_PATTERNS="poe\s+test"
     fi
 
+    local ALLOWED_COMMANDS_LIST=$(echo "$CONFIG_JSON" | jq -r --arg key "$TEST_COMMANDS_KEY" '
+        (.testCommands[$key] // []) | map(.name // .pattern) | join(", ")
+    ')
+
+    if [ -z "$ALLOWED_COMMANDS_LIST" ]; then
+        ALLOWED_COMMANDS_LIST="poe test"
+    fi
+
     local EXCLUDE_FROM_TEST_REQ=$(echo "$CONFIG_JSON" | jq -r '
         .excludeFromTestRequirement | join("|") // ""
     ' 2>/dev/null)
@@ -91,7 +99,8 @@ check_test_status() {
 
         if [ ! -f "$REPORT_FILE" ]; then
             echo "❌ No test report found ($REPORT_FILE missing)" >&2
-            echo "You MUST run a configured test command before committing" >&2
+            echo "You MUST run one of the following configured test commands before committing:" >&2
+            echo "  $ALLOWED_COMMANDS_LIST" >&2
             return 1
         fi
 
@@ -126,7 +135,8 @@ check_test_status() {
             local REPORT_DATE=$(date -d @"$REPORT_TIME" 2>/dev/null || date -r "$REPORT_TIME" 2>/dev/null)
             echo "❌ Tests have not been run since modifying $MOST_RECENT_FILE at $FILE_DATE" >&2
             echo "Test report ($REPORT_FILE) is from: $REPORT_DATE" >&2
-            echo "You MUST run a configured test command before committing" >&2
+            echo "You MUST run one of the following configured test commands before committing:" >&2
+            echo "  $ALLOWED_COMMANDS_LIST" >&2
             return 1
         fi
 
@@ -180,7 +190,8 @@ check_test_status() {
 
     if [ -z "$TEST_COMMANDS" ]; then
         echo "❌ Tests have not been run since modifying $LAST_MOD_FILE at $LAST_MOD_TIME" >&2
-        echo "You MUST run one of the configured test commands before finishing." >&2
+        echo "You MUST run one of the following configured test commands before finishing:" >&2
+        echo "  $ALLOWED_COMMANDS_LIST" >&2
         return 1
     fi
 
