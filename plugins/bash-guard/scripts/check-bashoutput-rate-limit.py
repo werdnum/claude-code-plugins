@@ -129,7 +129,7 @@ def check_rate_limit(
         return False, (
             f"BashOutput rate limit exceeded: {calls_last_minute} calls in the last minute "
             f"(maximum: {max_calls_per_minute}).\n"
-            "Please wait before checking output again. "
+            "Please sleep before checking output again. "
             "Excessive polling can slow down Claude Code and consume unnecessary resources."
         )
 
@@ -137,8 +137,8 @@ def check_rate_limit(
         return False, (
             f"BashOutput rate limit exceeded: {calls_last_5_minutes} calls in the last 5 minutes "
             f"(maximum: {max_calls_per_5_minutes}).\n"
-            "Please wait before checking output again. "
-            "Consider using longer intervals between checks or waiting for the background process to complete."
+            "Please sleep before checking output again. "
+            "Consider sleeping for longer intervals between checks or waiting for the background process to complete."
         )
 
     return True, ""
