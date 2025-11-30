@@ -1,5 +1,6 @@
 ---
 description: Fetch and display all GitHub PR comments including inline review comments
+allowed-tools: Bash(git branch:*), Bash(gh:*)
 ---
 
 # Fetch All PR Comments
