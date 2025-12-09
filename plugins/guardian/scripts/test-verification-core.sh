@@ -91,6 +91,15 @@ check_test_status() {
     local REPORT_FILE=$(echo "$CONFIG_JSON" | jq -r '.testReportFallback.reportFile // ".report.json"')
     local STALE_THRESHOLD=$(echo "$CONFIG_JSON" | jq -r '.testReportFallback.transcriptStaleThreshold // 300')
 
+    # --- Relaxed test file verification config ---
+    local RELAXED_ENABLED=$(echo "$CONFIG_JSON" | jq -r '.relaxedTestFileVerification.enabled // true')
+    local TEST_FILE_PATTERNS=$(echo "$CONFIG_JSON" | jq -r '
+        .relaxedTestFileVerification.testFilePatterns // ["^tests?/", "_test\\.py$", "test_[^/]*\\.py$", "\\.test\\.(js|ts|jsx|tsx)$", "\\.spec\\.(js|ts|jsx|tsx)$"] | join("|")
+    ' 2>/dev/null)
+    local SINGLE_TEST_CMD=$(echo "$CONFIG_JSON" | jq -r --arg key "$TEST_COMMANDS_KEY" '
+        .relaxedTestFileVerification.singleTestCommand[$key] // null
+    ' 2>/dev/null)
+
     # --- Check transcript age ---
     local TRANSCRIPT_AGE=$(( $(date +%s) - $(stat -c %Y "$TRANSCRIPT_PATH" 2>/dev/null || stat -f %m "$TRANSCRIPT_PATH" 2>/dev/null) ))
 
@@ -152,7 +161,31 @@ check_test_status() {
 
     echo "DEBUG: Using transcript path: $TRANSCRIPT_PATH" >&2
 
-    local LAST_MODIFICATION=$(cat "$TRANSCRIPT_PATH" | jq -c --arg exclude_pattern "$EXCLUDE_FROM_TEST_REQ" '
+    # --- Helper: Check if a test command succeeded ---
+    check_test_success() {
+        local test_id="$1"
+        local TEST_TIME=$(cat "$TRANSCRIPT_PATH" | jq -r --arg id "$test_id" '
+            select(.type == "assistant" and .message.content) |
+            select(.message.content[] | select(.type == "tool_use" and .id == $id)) |
+            .timestamp
+        ' | head -1)
+
+        local TEST_RESULT=$(cat "$TRANSCRIPT_PATH" | jq -r --arg id "$test_id" --arg test_time "$TEST_TIME" '
+            select(.type == "user" and .message.content and (.message.content | type == "array") and .timestamp > $test_time) |
+            .message.content[] |
+            select(.type == "tool_result" and .tool_use_id == $id) |
+            .is_error // false
+        ' 2>/dev/null | head -1)
+
+        if [ -z "$TEST_RESULT" ] || [ "$TEST_RESULT" = "false" ]; then
+            echo "true"
+        else
+            echo "false"
+        fi
+    }
+
+    # --- Get all file modifications (excluding excluded patterns) ---
+    local ALL_MODIFICATIONS=$(cat "$TRANSCRIPT_PATH" | jq -c --arg exclude_pattern "$EXCLUDE_FROM_TEST_REQ" '
         select(.type == "assistant" and .message.content and (.message.content | type == "array")) |
         .message.content[] |
         select(.type == "tool_use" and (.name == "Edit" or .name == "Write" or .name == "MultiEdit")) |
@@ -161,12 +194,14 @@ check_test_status() {
             (if $exclude_pattern != "" then .input.file_path | test($exclude_pattern; "ix") | not else true end)
         ) |
         {id: .id, name: .name, file: .input.file_path}
-    ' 2>/dev/null | tail -1)
+    ' 2>/dev/null)
 
-    if [ -z "$LAST_MODIFICATION" ]; then
+    if [ -z "$ALL_MODIFICATIONS" ]; then
         return 0
     fi
 
+    # --- Get the last modification ---
+    local LAST_MODIFICATION=$(echo "$ALL_MODIFICATIONS" | tail -1)
     local LAST_MOD_ID=$(echo "$LAST_MODIFICATION" | jq -r '.id')
     local LAST_MOD_FILE=$(echo "$LAST_MODIFICATION" | jq -r '.file // "unknown file"')
     local LAST_MOD_TIME=$(cat "$TRANSCRIPT_PATH" | jq -r --arg id "$LAST_MOD_ID" '
@@ -180,6 +215,7 @@ check_test_status() {
         return 0
     fi
 
+    # --- Find all test commands (full suite runs) after the last modification ---
     local TEST_COMMANDS=$(cat "$TRANSCRIPT_PATH" | jq -c --arg mod_time "$LAST_MOD_TIME" --arg test_patterns "$TEST_COMMAND_PATTERNS" '
         select(.type == "assistant" and .message.content and (.message.content | type == "array") and .timestamp > $mod_time) |
         .message.content[] |
@@ -188,41 +224,201 @@ check_test_status() {
         {id: .id, command: .input.command}
     ' 2>/dev/null)
 
-    if [ -z "$TEST_COMMANDS" ]; then
-        echo "❌ Tests have not been run since modifying $LAST_MOD_FILE at $LAST_MOD_TIME" >&2
-        echo "You MUST run one of the following configured test commands in the foreground before finishing:" >&2
-        echo "  $ALLOWED_COMMANDS_LIST" >&2
-        return 1
+    # --- Check if any full test suite run succeeded after the last modification ---
+    if [ -n "$TEST_COMMANDS" ]; then
+        while IFS= read -r test_cmd; do
+            if [ -z "$test_cmd" ]; then continue; fi
+            local TEST_ID=$(echo "$test_cmd" | jq -r '.id')
+            if [ "$(check_test_success "$TEST_ID")" = "true" ]; then
+                return 0  # Full test run passed after last modification
+            fi
+        done <<< "$TEST_COMMANDS"
     fi
 
-    local SUCCESSFUL_TEST=""
-    while IFS= read -r test_cmd; do
-        if [ -z "$test_cmd" ]; then continue; fi
-        local TEST_ID=$(echo "$test_cmd" | jq -r '.id')
-        local TEST_TIME=$(cat "$TRANSCRIPT_PATH" | jq -r --arg id "$TEST_ID" '
+    # --- No full test run after last modification - try relaxed verification if enabled ---
+    if [ "$RELAXED_ENABLED" = "true" ]; then
+        echo "DEBUG: No full test run since last modification, trying relaxed verification" >&2
+
+        # Find the last successful full test run (this is our baseline)
+        local LAST_FULL_TEST=$(cat "$TRANSCRIPT_PATH" | jq -c --arg test_patterns "$TEST_COMMAND_PATTERNS" '
+            select(.type == "assistant" and .message.content and (.message.content | type == "array")) |
+            .message.content[] |
+            select(.type == "tool_use" and .name == "Bash") |
+            select(.input.command | test($test_patterns; "i")) |
+            {id: .id, command: .input.command}
+        ' 2>/dev/null | while IFS= read -r test_cmd; do
+            if [ -z "$test_cmd" ]; then continue; fi
+            local tid=$(echo "$test_cmd" | jq -r '.id')
+            if [ "$(check_test_success "$tid")" = "true" ]; then
+                echo "$test_cmd"
+            fi
+        done | tail -1)
+
+        if [ -z "$LAST_FULL_TEST" ]; then
+            # No full passing test run exists in transcript - cannot use relaxed mode
+            echo "❌ Tests have not been run since modifying $LAST_MOD_FILE at $LAST_MOD_TIME" >&2
+            echo "You MUST run one of the following configured test commands in the foreground before finishing:" >&2
+            echo "  $ALLOWED_COMMANDS_LIST" >&2
+            echo "" >&2
+            echo "Note: Relaxed test verification requires at least one full passing test run as a baseline." >&2
+            return 1
+        fi
+
+        # Get timestamp of last full passing test
+        local FULL_TEST_ID=$(echo "$LAST_FULL_TEST" | jq -r '.id')
+        local FULL_TEST_TIME=$(cat "$TRANSCRIPT_PATH" | jq -r --arg id "$FULL_TEST_ID" '
             select(.type == "assistant" and .message.content) |
             select(.message.content[] | select(.type == "tool_use" and .id == $id)) |
             .timestamp
         ' | head -1)
 
-        local TEST_RESULT=$(cat "$TRANSCRIPT_PATH" | jq -r --arg id "$TEST_ID" --arg test_time "$TEST_TIME" '
-            select(.type == "user" and .message.content and (.message.content | type == "array") and .timestamp > $test_time) |
-            .message.content[] |
-            select(.type == "tool_result" and .tool_use_id == $id) |
-            .is_error // false
-        ' 2>/dev/null | head -1)
-        
-        if [ -z "$TEST_RESULT" ] || [ "$TEST_RESULT" = "false" ]; then
-            SUCCESSFUL_TEST="true"
-            break
-        fi
-    done <<< "$TEST_COMMANDS"
+        echo "DEBUG: Found last full passing test at $FULL_TEST_TIME" >&2
 
-    if [ -n "$SUCCESSFUL_TEST" ]; then
-        return 0
-    else
-        echo "❌ Last test run failed after modifying $LAST_MOD_FILE at $LAST_MOD_TIME" >&2
-        echo "You MUST fix failing tests before finishing" >&2
+        # Get all modifications SINCE the last full passing test run
+        local MODS_SINCE_FULL_TEST=$(cat "$TRANSCRIPT_PATH" | jq -c --arg full_test_time "$FULL_TEST_TIME" --arg exclude_pattern "$EXCLUDE_FROM_TEST_REQ" '
+            select(.type == "assistant" and .message.content and (.message.content | type == "array") and .timestamp > $full_test_time) |
+            .message.content[] |
+            select(.type == "tool_use" and (.name == "Edit" or .name == "Write" or .name == "MultiEdit")) |
+            select(
+                .input.file_path and
+                (if $exclude_pattern != "" then .input.file_path | test($exclude_pattern; "ix") | not else true end)
+            ) |
+            {id: .id, name: .name, file: .input.file_path}
+        ' 2>/dev/null)
+
+        if [ -z "$MODS_SINCE_FULL_TEST" ]; then
+            # No modifications since full test run - should have passed above, but allow
+            return 0
+        fi
+
+        # Check if ALL modifications since full test are to test files
+        local NON_TEST_MODS=""
+        local TEST_FILE_MODS=""
+        while IFS= read -r mod; do
+            if [ -z "$mod" ]; then continue; fi
+            local mod_file=$(echo "$mod" | jq -r '.file')
+            if echo "$mod_file" | grep -qE "($TEST_FILE_PATTERNS)"; then
+                TEST_FILE_MODS="${TEST_FILE_MODS}${mod}"$'\n'
+            else
+                NON_TEST_MODS="${NON_TEST_MODS}${mod_file}"$'\n'
+            fi
+        done <<< "$MODS_SINCE_FULL_TEST"
+
+        if [ -n "$NON_TEST_MODS" ]; then
+            # Non-test files were modified - require full test run
+            local first_non_test=$(echo "$NON_TEST_MODS" | head -1)
+            echo "❌ Tests have not been run since modifying $LAST_MOD_FILE at $LAST_MOD_TIME" >&2
+            echo "You MUST run one of the following configured test commands in the foreground before finishing:" >&2
+            echo "  $ALLOWED_COMMANDS_LIST" >&2
+            echo "" >&2
+            echo "Note: Non-test files have been modified since the last full test run (e.g., $first_non_test)," >&2
+            echo "so a full test suite run is required." >&2
+            return 1
+        fi
+
+        # Only test files modified - check if each has been individually verified
+        echo "DEBUG: Only test files modified since last full test run" >&2
+
+        # Get unique test files modified since the full test run
+        local UNIQUE_TEST_FILES=$(echo "$MODS_SINCE_FULL_TEST" | jq -r '.file' | sort -u)
+
+        local UNVERIFIED_FILES=""
+        while IFS= read -r test_file; do
+            if [ -z "$test_file" ]; then continue; fi
+
+            # Find the last modification to this specific file
+            local FILE_LAST_MOD_TIME=$(cat "$TRANSCRIPT_PATH" | jq -r --arg file "$test_file" '
+                select(.type == "assistant" and .message.content and (.message.content | type == "array")) |
+                select(.message.content[] | select(.type == "tool_use" and (.name == "Edit" or .name == "Write" or .name == "MultiEdit") and .input.file_path == $file)) |
+                .timestamp
+            ' | tail -1)
+
+            # Check if there's a test command AFTER this modification that includes this file
+            local FILE_TESTED=$(cat "$TRANSCRIPT_PATH" | jq -c --arg mod_time "$FILE_LAST_MOD_TIME" --arg file "$test_file" --arg test_patterns "$TEST_COMMAND_PATTERNS" '
+                select(.type == "assistant" and .message.content and (.message.content | type == "array") and .timestamp > $mod_time) |
+                .message.content[] |
+                select(.type == "tool_use" and .name == "Bash") |
+                select(.input.command | (test($test_patterns; "i") and test($file; "i"))) |
+                {id: .id, command: .input.command}
+            ' 2>/dev/null)
+
+            local FILE_VERIFIED="false"
+            if [ -n "$FILE_TESTED" ]; then
+                while IFS= read -r test_cmd; do
+                    if [ -z "$test_cmd" ]; then continue; fi
+                    local tid=$(echo "$test_cmd" | jq -r '.id')
+                    if [ "$(check_test_success "$tid")" = "true" ]; then
+                        FILE_VERIFIED="true"
+                        echo "DEBUG: Test file $test_file has been individually verified" >&2
+                        break
+                    fi
+                done <<< "$FILE_TESTED"
+            fi
+
+            if [ "$FILE_VERIFIED" = "false" ]; then
+                UNVERIFIED_FILES="${UNVERIFIED_FILES}${test_file}"$'\n'
+            fi
+        done <<< "$UNIQUE_TEST_FILES"
+
+        if [ -z "$UNVERIFIED_FILES" ]; then
+            echo "DEBUG: All modified test files have been individually verified" >&2
+            return 0
+        fi
+
+        # Some test files not verified - generate helpful error message
+        local first_unverified=$(echo "$UNVERIFIED_FILES" | head -1)
+        local unverified_count=$(echo "$UNVERIFIED_FILES" | grep -c .)
+
+        echo "❌ Tests have not been run since modifying test file(s)" >&2
+
+        if [ "$unverified_count" -eq 1 ]; then
+            echo "   Modified test file: $first_unverified" >&2
+        else
+            echo "   Modified test files ($unverified_count total):" >&2
+            echo "$UNVERIFIED_FILES" | while read -r f; do
+                [ -n "$f" ] && echo "     - $f" >&2
+            done
+        fi
+
+        echo "" >&2
+
+        # Provide specific command suggestions
+        if [ "$SINGLE_TEST_CMD" != "null" ] && [ -n "$SINGLE_TEST_CMD" ]; then
+            echo "Please verify that the modified test(s) pass. Run:" >&2
+            echo "$UNVERIFIED_FILES" | while read -r f; do
+                if [ -n "$f" ]; then
+                    local cmd="${SINGLE_TEST_CMD//\{file\}/$f}"
+                    echo "  $cmd" >&2
+                fi
+            done
+        else
+            echo "Please verify that the modified test(s) pass by running them individually." >&2
+            echo "Example commands that would be accepted:" >&2
+            echo "$UNVERIFIED_FILES" | while read -r f; do
+                if [ -n "$f" ]; then
+                    # Generate example command based on file type
+                    if echo "$f" | grep -qE '\.py$'; then
+                        echo "  pytest $f" >&2
+                    elif echo "$f" | grep -qE '\.(js|ts|jsx|tsx)$'; then
+                        echo "  npm test -- $f" >&2
+                    else
+                        echo "  <test-runner> $f" >&2
+                    fi
+                fi
+            done
+            echo "" >&2
+            echo "Tip: Configure 'relaxedTestFileVerification.singleTestCommand' in .claude/guardian.json" >&2
+            echo "to customize the suggested command (e.g., 'pytest {file}' or 'npm test -- {file}')." >&2
+        fi
+
+        echo "" >&2
+        echo "Alternatively, run a full test suite: $ALLOWED_COMMANDS_LIST" >&2
         return 1
     fi
+
+    # Relaxed mode disabled - use standard error message
+    echo "❌ Tests have not been run since modifying $LAST_MOD_FILE at $LAST_MOD_TIME" >&2
+    echo "You MUST run one of the following configured test commands in the foreground before finishing:" >&2
+    echo "  $ALLOWED_COMMANDS_LIST" >&2
+    return 1
 }

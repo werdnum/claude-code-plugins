@@ -47,6 +47,41 @@ Ensures tests have been run successfully since the last file modification before
 - Skips verification in remote Claude Code sessions (CLAUDE_CODE_REMOTE=true)
 - Excludes documentation and config files from test requirements
 
+#### Relaxed Test File Verification
+
+When only test files have been modified since the last full test run, the hook allows individual test verification instead of requiring a full test suite re-run. This is useful when:
+
+1. You run the full test suite (`poe test`)
+2. Code review suggests minor formatting fixes in a test file
+3. You can now verify just the modified test file instead of the entire suite
+
+**Requirements:**
+- At least one full passing test run must exist as a baseline
+- Only test files (matching `testFilePatterns`) have been modified since that baseline
+- Each modified test file must have been individually run and passed after its modification
+
+**Configuration:**
+```json
+{
+  "testVerification": {
+    "relaxedTestFileVerification": {
+      "enabled": true,
+      "testFilePatterns": [
+        "^tests?/",
+        "_test\\.py$",
+        "test_[^/]*\\.py$"
+      ],
+      "singleTestCommand": {
+        "local": "pytest {file}",
+        "remote": null
+      }
+    }
+  }
+}
+```
+
+The `singleTestCommand` uses `{file}` as a placeholder for the test file path. If not configured, the hook suggests appropriate commands based on file extension.
+
 ### Pre-Commit Review
 
 Runs workflow before git commits and PR creation:
@@ -91,7 +126,18 @@ Example `.claude/guardian.json`:
         {"pattern": "^pytest\\b", "name": "pytest"}
       ]
     },
-    "triggerCommands": ["git commit", "echo done"]
+    "triggerCommands": ["git commit", "echo done"],
+    "relaxedTestFileVerification": {
+      "enabled": true,
+      "testFilePatterns": [
+        "^tests?/",
+        "_test\\.py$",
+        "test_[^/]*\\.py$"
+      ],
+      "singleTestCommand": {
+        "local": "pytest {file}"
+      }
+    }
   },
   "preCommitReview": {
     "enabled": true,
