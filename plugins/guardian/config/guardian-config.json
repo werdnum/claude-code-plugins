@@ -37,6 +37,27 @@
     ],
     "comment_excludeFromTestRequirement": "Files that don't require tests (docs, config, etc)",
 
+    "relaxedTestFileVerification": {
+      "description": "Allow commits when only test files have changed since last full test run, if those specific tests have passed",
+      "enabled": true,
+      "testFilePatterns": [
+        "^tests?/",
+        "_test\\.py$",
+        "test_[^/]*\\.py$",
+        "\\.test\\.(js|ts|jsx|tsx)$",
+        "\\.spec\\.(js|ts|jsx|tsx)$"
+      ],
+      "comment_testFilePatterns": "Patterns that identify test files. If only these files changed since full test run, individual test verification is allowed.",
+      "singleTestCommand": {
+        "description": "Template for running a single test file. Use {file} as placeholder for the file path.",
+        "local": null,
+        "comment_local": "Set to command template like 'pytest {file}' or 'npm test -- {file}'",
+        "remote": null,
+        "comment_remote": "Same as local but for remote environments"
+      }
+    },
+    "comment_relaxedTestFileVerification": "Allows bypassing full test re-run when only test files changed and those specific tests pass",
+
     "testReportFallback": {
       "description": "If transcript doesn't show test run, check for test report file",
       "enabled": true,
