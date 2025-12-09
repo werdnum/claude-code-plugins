@@ -184,6 +184,9 @@ def create_warning_message(detections: list[dict[str, str]], file_path: str) -> 
             "",
             "Remember: Linter warnings exist to catch bugs and improve code quality.",
             "Suppressing them without understanding why defeats their purpose.",
+            "",
+            "Note: This is a reminder only. Disregard if an appropriate justification",
+            "has already been provided.",
         ])
 
         if justified:
