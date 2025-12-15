@@ -46,6 +46,6 @@
     "enabled": true,
     "max_calls_per_minute": 2,
     "max_calls_per_5_minutes": 3,
-    "comment": "Rate limiting for BashOutput tool to prevent excessive polling. Limits: 2 calls/minute, 3 calls/5 minutes."
+    "comment": "Rate limiting for BashOutput tool to prevent excessive polling. When exceeded, the hook enforces the limit by sleeping until the rate limit window resets. Limits: 2 calls/minute, 3 calls/5 minutes."
   }
 }

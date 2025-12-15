@@ -76,7 +76,7 @@ Prevent excessive polling of background process output:
 
 - Limits BashOutput calls to 2 per minute
 - Limits BashOutput calls to 3 per 5 minutes
-- Prevents unnecessary resource consumption from rapid polling
+- **Enforced by sleeping**: When rate limit is exceeded, the hook waits until the rate limit window resets
 - Configurable thresholds and can be disabled if needed
 - Uses transcript analysis to track call frequency
 
@@ -302,10 +302,15 @@ Create `.claude/bash-guard.json` in your project:
 - `max_calls_per_minute` (number): Maximum BashOutput calls allowed per minute (default: 2)
 - `max_calls_per_5_minutes` (number): Maximum BashOutput calls allowed per 5 minutes (default: 3)
 
+**How it works**:
+- When rate limit is exceeded, the hook sleeps until the rate limit window resets
+- This enforces the rate limit rather than just telling Claude to wait
+- The hook has a 6-minute timeout to accommodate maximum possible wait times
+
 **Use cases**:
-- Prevent Claude from rapidly polling background processes
+- Automatically prevent rapid polling loops
 - Reduce unnecessary resource consumption
-- Encourage proper wait strategies for long-running commands
+- Ensure proper pacing for background process monitoring
 
 **To disable rate limiting**:
 ```json
@@ -392,15 +397,14 @@ Now bash-guard enforces your project-specific conventions!
 ```bash
 Claude attempts: BashOutput for background shell (3rd call in 1 minute)
 
-Result: ❌ Blocked
-• BashOutput rate limit exceeded: 3 calls in the last minute (maximum: 2).
-  Please wait before checking output again.
-  Excessive polling can slow down Claude Code and consume unnecessary resources.
+Result: ⏳ Waiting (enforced)
+• BashOutput rate limit: 3 calls in the last minute (max: 2). Waiting 45.0s...
+• Rate limit wait complete, proceeding with BashOutput
 ```
 
 **Why this helps**:
-- Prevents rapid polling loops
-- Encourages waiting for processes to complete naturally
+- Enforces rate limits by actually waiting (not just telling Claude to wait)
+- Prevents rapid polling loops automatically
 - Reduces transcript size and processing overhead
 - Improves overall session performance
 

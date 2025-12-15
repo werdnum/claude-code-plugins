@@ -19,7 +19,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/check-bashoutput-rate-limit.py"
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/check-bashoutput-rate-limit.py",
+            "timeout": 360000
           }
         ]
       }

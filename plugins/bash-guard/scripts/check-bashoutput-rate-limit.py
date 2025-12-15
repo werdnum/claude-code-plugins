@@ -7,14 +7,18 @@ Rate limits:
 - Maximum 2 calls per minute (60 seconds)
 - Maximum 3 calls per 5 minutes (300 seconds)
 
+Enforcement:
+- When rate limit is exceeded, the hook sleeps until the rate limit window resets
+- This enforces the rate limit rather than just telling the model to wait
+
 Exit codes:
-- 0: Allow (within rate limits)
-- 2: Block (rate limit exceeded)
+- 0: Allow (within rate limits, or after waiting for rate limit to reset)
 """
 
 import json
 import os
 import sys
+import time
 from datetime import datetime, timedelta, timezone
 
 
@@ -107,41 +111,48 @@ def check_rate_limit(
     current_time: datetime,
     max_calls_per_minute: int,
     max_calls_per_5_minutes: int
-) -> tuple[bool, str]:
+) -> tuple[bool, float, str]:
     """
     Check if rate limits are exceeded.
 
     Returns:
-        tuple of (allowed, explanation)
+        tuple of (allowed, wait_seconds, explanation)
         - allowed: True if within rate limits, False otherwise
-        - explanation: Human-readable explanation if blocked
+        - wait_seconds: Seconds to wait until rate limit resets (0 if allowed)
+        - explanation: Human-readable explanation if rate limited
     """
     # Count calls in the last minute
     one_minute_ago = current_time - timedelta(seconds=60)
-    calls_last_minute = sum(1 for ts in timestamps if ts > one_minute_ago)
+    calls_in_last_minute = [ts for ts in timestamps if ts > one_minute_ago]
+    calls_last_minute = len(calls_in_last_minute)
 
     # Count calls in the last 5 minutes
     five_minutes_ago = current_time - timedelta(seconds=300)
-    calls_last_5_minutes = sum(1 for ts in timestamps if ts > five_minutes_ago)
+    calls_in_last_5_minutes = [ts for ts in timestamps if ts > five_minutes_ago]
+    calls_last_5_minutes = len(calls_in_last_5_minutes)
 
-    # Check rate limits
+    # Check rate limits and calculate wait time
     if calls_last_minute >= max_calls_per_minute:
-        return False, (
-            f"BashOutput rate limit exceeded: {calls_last_minute} calls in the last minute "
-            f"(maximum: {max_calls_per_minute}).\n"
-            "Please sleep before checking output again. "
-            "Excessive polling can slow down Claude Code and consume unnecessary resources."
+        # Find the oldest call in the minute window - wait until it falls out
+        oldest_in_minute = min(calls_in_last_minute)
+        wait_until = oldest_in_minute + timedelta(seconds=60)
+        wait_seconds = max(0.0, (wait_until - current_time).total_seconds()) + 1.0  # Add 1s buffer
+        return False, wait_seconds, (
+            f"BashOutput rate limit: {calls_last_minute} calls in the last minute "
+            f"(max: {max_calls_per_minute}). Waiting {wait_seconds:.1f}s..."
         )
 
     if calls_last_5_minutes >= max_calls_per_5_minutes:
-        return False, (
-            f"BashOutput rate limit exceeded: {calls_last_5_minutes} calls in the last 5 minutes "
-            f"(maximum: {max_calls_per_5_minutes}).\n"
-            "Please sleep before checking output again. "
-            "Consider sleeping for longer intervals between checks or waiting for the background process to complete."
+        # Find the oldest call in the 5-minute window - wait until it falls out
+        oldest_in_5_minutes = min(calls_in_last_5_minutes)
+        wait_until = oldest_in_5_minutes + timedelta(seconds=300)
+        wait_seconds = max(0.0, (wait_until - current_time).total_seconds()) + 1.0  # Add 1s buffer
+        return False, wait_seconds, (
+            f"BashOutput rate limit: {calls_last_5_minutes} calls in the last 5 minutes "
+            f"(max: {max_calls_per_5_minutes}). Waiting {wait_seconds:.1f}s..."
         )
 
-    return True, ""
+    return True, 0.0, ""
 
 
 def main() -> None:
@@ -185,7 +196,7 @@ def main() -> None:
 
     # Check rate limit
     current_time = datetime.now(timezone.utc)
-    allowed, explanation = check_rate_limit(
+    allowed, wait_seconds, explanation = check_rate_limit(
         bashoutput_timestamps,
         current_time,
         max_calls_per_minute,
@@ -193,10 +204,12 @@ def main() -> None:
     )
 
     if not allowed:
+        # Enforce rate limit by sleeping until the window resets
         print(f"• {explanation}", file=sys.stderr)
-        sys.exit(2)
+        time.sleep(wait_seconds)
+        print(f"• Rate limit wait complete, proceeding with BashOutput", file=sys.stderr)
 
-    # Within rate limits, allow
+    # Within rate limits (or after waiting), allow
     sys.exit(0)
 
 
