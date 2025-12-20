@@ -154,8 +154,8 @@ async def main() -> None:
         tool_name = tool_data.get("tool_name", "")
         tool_input = tool_data.get("tool_input", {})
 
-        # Only process file editing tools
-        if tool_name not in {"Edit", "Write", "NotebookEdit"}:
+        # Only process file editing tools (Claude: Edit/Write/NotebookEdit, Gemini: replace/write_file)
+        if tool_name not in {"Edit", "Write", "NotebookEdit", "replace", "write_file"}:
             return
 
         # Extract file path

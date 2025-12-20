@@ -17,6 +17,23 @@
         ]
       }
     ],
+    "BeforeTool": [
+      {
+        "matcher": "run_shell_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${extensionPath}/scripts/test-verification-hook.sh",
+            "timeout": 60000
+          },
+          {
+            "type": "command",
+            "command": "${extensionPath}/scripts/review-workflow-hook.py",
+            "timeout": 300000
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "matcher": "",
@@ -30,6 +47,17 @@
             "type": "prompt",
             "prompt": "You are reviewing whether Claude Code should stop or continue working.\n\nEvaluate the following criteria:\n1. Has the user's original request been completely fulfilled?\n2. Are there any obvious loose ends or incomplete work?\n3. If tests were run, did they all pass?\n4. If code changes were made, are they properly committed?\n5. Are there any error messages or warnings that need attention?\n\nContext available:\n- Transcript path: ${transcript_path}\n- Stop hook active: ${stop_hook_active}\n- Session ID: ${session_id}\n\nDecision criteria:\n- Return 'block' if there are clear signs the work is incomplete or if critical issues remain unresolved\n- Return 'allow' if the request appears to be fulfilled and there are no obvious blockers\n- Be pragmatic: don't block for minor issues or style preferences\n- Trust that the shell-based hook already verified git status, test results, and formatting\n\nProvide a brief, specific reason for your decision.",
             "timeout": 30000
+          }
+        ]
+      }
+    ],
+    "AfterAgent": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${extensionPath}/scripts/stop-validation-hook.sh",
+            "timeout": 300000
           }
         ]
       }

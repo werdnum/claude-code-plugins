@@ -1,0 +1,5 @@
+{
+  "name": "bash-guard",
+  "version": "1.0.0",
+  "description": "Prevents dangerous bash commands and enforces main branch protection"
+}

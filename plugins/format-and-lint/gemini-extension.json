@@ -1,0 +1,5 @@
+{
+  "name": "format-and-lint",
+  "version": "1.0.0",
+  "description": "Auto-formatting and linting after file edits"
+}

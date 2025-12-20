@@ -1,0 +1,5 @@
+{
+  "name": "jj-snapshot",
+  "version": "1.0.0",
+  "description": "Snapshots jj repo state after edits"
+}

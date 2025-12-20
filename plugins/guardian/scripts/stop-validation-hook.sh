@@ -6,6 +6,12 @@
 
 set -euo pipefail
 
+# Ensure CLAUDE_PLUGIN_ROOT is set for portability
+if [ -z "${CLAUDE_PLUGIN_ROOT:-}" ]; then
+    CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    export CLAUDE_PLUGIN_ROOT
+fi
+
 # Source the core test verification logic
 source "${CLAUDE_PLUGIN_ROOT}/scripts/test-verification-core.sh"
 

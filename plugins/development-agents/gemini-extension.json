@@ -1,0 +1,6 @@
+{
+  "name": "development-agents",
+  "version": "1.0.0",
+  "description": "A collection of specialized development agents and commands",
+  "contextFileName": "README.md"
+}

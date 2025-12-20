@@ -21,6 +21,23 @@
           }
         ]
       }
+    ],
+    "AfterTool": [
+      {
+        "matcher": "replace|write_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${extensionPath}/scripts/format-and-lint.py",
+            "timeout": 15000
+          },
+          {
+            "type": "command",
+            "command": "python3 ${extensionPath}/scripts/check-linter-ignores.py",
+            "timeout": 5000
+          }
+        ]
+      }
     ]
   }
 }

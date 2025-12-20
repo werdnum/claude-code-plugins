@@ -24,6 +24,21 @@
           }
         ]
       }
+    ],
+    "BeforeTool": [
+      {
+        "matcher": "run_shell_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${extensionPath}/scripts/check-banned-commands.py"
+          },
+          {
+            "type": "command",
+            "command": "${extensionPath}/scripts/check-main-branch-commit.py"
+          }
+        ]
+      }
     ]
   }
 }

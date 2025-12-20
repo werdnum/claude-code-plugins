@@ -19,6 +19,12 @@ if [ "$ENABLED" != "true" ]; then
     exit 0
 fi
 
+# Ensure CLAUDE_PLUGIN_ROOT is set for portability
+if [ -z "${CLAUDE_PLUGIN_ROOT:-}" ]; then
+    CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    export CLAUDE_PLUGIN_ROOT
+fi
+
 # Skip verification when running in remote Claude Code session if configured
 SKIP_REMOTE=$(echo "$TEST_VERIFICATION_CONFIG" | jq -r '.skipInRemote // true')
 ENV_SELECTOR=$(echo "$TEST_VERIFICATION_CONFIG" | jq -r '.environmentSelector // "CLAUDE_CODE_REMOTE"')
@@ -43,8 +49,8 @@ INPUT=$(cat)
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty')
 COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
 
-# Only check for specific tool names
-if [ "$TOOL_NAME" != "Bash" ]; then
+# Only check for specific tool names (Bash for Claude, run_shell_command for Gemini)
+if [ "$TOOL_NAME" != "Bash" ] && [ "$TOOL_NAME" != "run_shell_command" ]; then
     exit 0
 fi
 

@@ -11,6 +11,18 @@
           }
         ]
       }
+    ],
+    "AfterTool": [
+      {
+        "matcher": "replace|write_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${extensionPath}/scripts/snapshot.sh",
+            "timeout": 5000
+          }
+        ]
+      }
     ]
   }
 }

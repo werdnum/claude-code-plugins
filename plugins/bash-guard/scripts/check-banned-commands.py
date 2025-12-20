@@ -195,7 +195,8 @@ def main() -> None:
     tool_input = input_data.get("tool_input", {})
     command = tool_input.get("command", "")
 
-    if tool_name != "Bash" or not command:
+    # Only check Bash (Claude) or run_shell_command (Gemini) tool calls
+    if tool_name not in ["Bash", "run_shell_command"] or not command:
         sys.exit(0)
 
     # Load configuration
