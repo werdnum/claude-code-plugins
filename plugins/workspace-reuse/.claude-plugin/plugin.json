@@ -1,0 +1,9 @@
+{
+  "name": "workspace-reuse",
+  "version": "1.0.0",
+  "description": "Manage workspace state for reuse between tasks - auto-switch from merged PR branches, fetch updates, and block stale operations",
+  "author": {
+    "name": "Andrew Garrett",
+    "email": "andrewgarrett@google.com"
+  }
+}
