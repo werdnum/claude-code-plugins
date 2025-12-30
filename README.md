@@ -43,10 +43,10 @@ These plugins solve real development workflow challenges:
 
 ```bash
 # Local path (for development)
-/plugin marketplace add /data/ssd/sync/workspace/src/werdnum-plugins
+/plugin marketplace add /data/ssd/sync/workspace/src/claude-code-plugins
 
 # Or from git remote
-/plugin marketplace add https://github.com/your-username/werdnum-plugins
+/plugin marketplace add https://github.com/your-username/claude-code-plugins
 ```
 
 ### 2. Install Plugins
@@ -274,12 +274,12 @@ Plugins respect environment variables:
 
 For local development:
 ```bash
-/plugin marketplace add /data/ssd/sync/workspace/src/werdnum-plugins
+/plugin marketplace add /data/ssd/sync/workspace/src/claude-code-plugins
 ```
 
 For remote repository:
 ```bash
-/plugin marketplace add https://github.com/your-username/werdnum-plugins
+/plugin marketplace add https://github.com/your-username/claude-code-plugins
 ```
 
 #### 2. List Available Marketplaces
@@ -479,7 +479,7 @@ export ONESHOT_MODE=true
 
 ### Plugin Validation
 
-![Validate Plugins](https://github.com/werdnum/werdnum-plugins/actions/workflows/validate-plugins.yml/badge.svg)
+![Validate Plugins](https://github.com/werdnum/claude-code-plugins/actions/workflows/validate-plugins.yml/badge.svg)
 
 This repository includes automated CI that validates all plugins on every push and pull request.
 
@@ -512,7 +512,7 @@ done
 ### Repository Structure
 
 ```
-werdnum-plugins/
+claude-code-plugins/
 ├── .claude-plugin/
 │   └── marketplace.json          # Marketplace manifest
 ├── plugins/
