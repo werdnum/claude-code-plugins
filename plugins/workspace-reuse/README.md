@@ -41,5 +41,5 @@ Blocks `gh pr edit` commands for PRs that are already merged.
 ## Installation
 
 ```
-/plugin install workspace-reuse@claude-code-plugins
+/plugin install workspace-reuse@werdnum-plugins
 ```

@@ -109,10 +109,10 @@ The plugin uses Claude Code's `updatedInput` feature to modify commands before e
 
 ```bash
 # Add the marketplace (if not already added)
-/plugin marketplace add /data/ssd/sync/workspace/src/claude-code-plugins
+/plugin marketplace add /data/ssd/sync/workspace/src/werdnum-plugins
 
 # Install bash-guard
-/plugin install bash-guard@claude-code-plugins
+/plugin install bash-guard@werdnum-plugins
 
 # Verify installation
 /plugin list

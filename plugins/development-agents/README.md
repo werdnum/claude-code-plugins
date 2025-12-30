@@ -5,7 +5,7 @@ Collection of specialized development agents and commands for common workflows.
 ## Installation
 
 ```bash
-/plugin install development-agents@claude-code-plugins
+/plugin install development-agents@werdnum-plugins
 ```
 
 ## Agents
@@ -101,7 +101,7 @@ Use for coordinating parallel development across multiple independent tasks.
 
 ### /bootstrap-plugins
 
-Automatically configures all claude-code-plugins for your project through intelligent auto-detection and minimal user interaction.
+Automatically configures all werdnum-plugins for your project through intelligent auto-detection and minimal user interaction.
 
 ```
 /bootstrap-plugins

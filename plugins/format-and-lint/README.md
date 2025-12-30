@@ -46,7 +46,7 @@ The guard differentiates between justified and unjustified suppressions based on
 ## Installation
 
 ```bash
-/plugin install format-and-lint@claude-code-plugins
+/plugin install format-and-lint@werdnum-plugins
 ```
 
 ## Quick Start

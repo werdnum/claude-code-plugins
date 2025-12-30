@@ -1,6 +1,6 @@
 {
   "extraKnownMarketplaces": {
-    "claude-code-plugins": {
+    "werdnum-plugins": {
       "source": {
         "source": "local",
         "path": "."
@@ -8,9 +8,9 @@
     }
   },
   "enabledPlugins": [
-    "bash-guard@claude-code-plugins",
-    "format-and-lint@claude-code-plugins",
-    "guardian@claude-code-plugins",
-    "development-agents@claude-code-plugins"
+    "bash-guard@werdnum-plugins",
+    "format-and-lint@werdnum-plugins",
+    "guardian@werdnum-plugins",
+    "development-agents@werdnum-plugins"
   ]
 }
