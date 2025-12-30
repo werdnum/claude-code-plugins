@@ -43,20 +43,20 @@ These plugins solve real development workflow challenges:
 
 ```bash
 # Local path (for development)
-/plugin marketplace add /data/ssd/sync/workspace/src/claude-code-plugins
+/plugin marketplace add /data/ssd/sync/workspace/src/werdnum-plugins
 
 # Or from git remote
-/plugin marketplace add https://github.com/your-username/claude-code-plugins
+/plugin marketplace add https://github.com/your-username/werdnum-plugins
 ```
 
 ### 2. Install Plugins
 
 ```bash
 # Install all plugins
-/plugin install bash-guard@claude-code-plugins
-/plugin install format-and-lint@claude-code-plugins
-/plugin install guardian@claude-code-plugins
-/plugin install development-agents@claude-code-plugins
+/plugin install bash-guard@werdnum-plugins
+/plugin install format-and-lint@werdnum-plugins
+/plugin install guardian@werdnum-plugins
+/plugin install development-agents@werdnum-plugins
 
 # Or browse and install interactively
 /plugin
@@ -274,12 +274,12 @@ Plugins respect environment variables:
 
 For local development:
 ```bash
-/plugin marketplace add /data/ssd/sync/workspace/src/claude-code-plugins
+/plugin marketplace add /data/ssd/sync/workspace/src/werdnum-plugins
 ```
 
 For remote repository:
 ```bash
-/plugin marketplace add https://github.com/your-username/claude-code-plugins
+/plugin marketplace add https://github.com/your-username/werdnum-plugins
 ```
 
 #### 2. List Available Marketplaces
@@ -288,7 +288,7 @@ For remote repository:
 /plugin marketplace list
 ```
 
-You should see `claude-code-plugins` in the list.
+You should see `werdnum-plugins` in the list.
 
 #### 3. Browse Plugins
 
@@ -296,19 +296,19 @@ You should see `claude-code-plugins` in the list.
 /plugin
 ```
 
-Select "Browse Plugins" and choose the "claude-code-plugins" marketplace.
+Select "Browse Plugins" and choose the "werdnum-plugins" marketplace.
 
 #### 4. Install Desired Plugins
 
 ```bash
 # Install individually
-/plugin install bash-guard@claude-code-plugins
+/plugin install bash-guard@werdnum-plugins
 
 # Or install all
-/plugin install bash-guard@claude-code-plugins
-/plugin install format-and-lint@claude-code-plugins
-/plugin install guardian@claude-code-plugins
-/plugin install development-agents@claude-code-plugins
+/plugin install bash-guard@werdnum-plugins
+/plugin install format-and-lint@werdnum-plugins
+/plugin install guardian@werdnum-plugins
+/plugin install development-agents@werdnum-plugins
 ```
 
 #### 5. Verify Installation
@@ -329,7 +329,7 @@ You should see all installed plugins with their status (enabled/disabled).
 ### Uninstalling Plugins
 
 ```bash
-/plugin uninstall bash-guard@claude-code-plugins
+/plugin uninstall bash-guard@werdnum-plugins
 ```
 
 ## Usage Examples
@@ -479,7 +479,7 @@ export ONESHOT_MODE=true
 
 ### Plugin Validation
 
-![Validate Plugins](https://github.com/werdnum/claude-code-plugins/actions/workflows/validate-plugins.yml/badge.svg)
+![Validate Plugins](https://github.com/werdnum/werdnum-plugins/actions/workflows/validate-plugins.yml/badge.svg)
 
 This repository includes automated CI that validates all plugins on every push and pull request.
 
@@ -512,7 +512,7 @@ done
 ### Repository Structure
 
 ```
-claude-code-plugins/
+werdnum-plugins/
 ├── .claude-plugin/
 │   └── marketplace.json          # Marketplace manifest
 ├── plugins/
@@ -590,8 +590,8 @@ claude-code-plugins/
 
 8. **Test locally**:
    ```bash
-   /plugin marketplace update claude-code-plugins
-   /plugin install my-plugin@claude-code-plugins
+   /plugin marketplace update werdnum-plugins
+   /plugin install my-plugin@werdnum-plugins
    ```
 
 ### Hook Types Reference

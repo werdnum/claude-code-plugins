@@ -24,10 +24,10 @@ The plugin uses a PostToolUse hook that triggers after Edit, Write, or NotebookE
 
 ## Installation
 
-Install this plugin from the claude-code-plugins marketplace:
+Install this plugin from the werdnum-plugins marketplace:
 
 ```bash
-/plugin install jj-snapshot@claude-code-plugins
+/plugin install jj-snapshot@werdnum-plugins
 ```
 
 ## Requirements

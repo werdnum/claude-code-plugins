@@ -4,7 +4,7 @@ description: Bootstrap project configuration for all installed plugins
 
 # Project Configuration Bootstrap
 
-This command configures all claude-code-plugins for your project through intelligent auto-detection and minimal user interaction.
+This command configures all werdnum-plugins for your project through intelligent auto-detection and minimal user interaction.
 
 ## Your Task
 
@@ -80,7 +80,7 @@ Configure the marketplace and enable all plugins:
 ```json
 {
   "extraKnownMarketplaces": {
-    "claude-code-plugins": {
+    "werdnum-plugins": {
       "source": {
         "source": "local",
         "path": "<absolute path to this repository>"
@@ -88,10 +88,10 @@ Configure the marketplace and enable all plugins:
     }
   },
   "enabledPlugins": {
-    "bash-guard@claude-code-plugins": true,
-    "format-and-lint@claude-code-plugins": true,
-    "guardian@claude-code-plugins": true,
-    "development-agents@claude-code-plugins": true
+    "bash-guard@werdnum-plugins": true,
+    "format-and-lint@werdnum-plugins": true,
+    "guardian@werdnum-plugins": true,
+    "development-agents@werdnum-plugins": true
   }
 }
 ```

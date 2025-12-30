@@ -25,7 +25,7 @@ All features are individually toggleable via configuration.
 ## Installation
 
 ```bash
-/plugin install guardian@claude-code-plugins
+/plugin install guardian@werdnum-plugins
 ```
 
 ## Quick Start
