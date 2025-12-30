@@ -9,7 +9,7 @@ This is a personal plugin marketplace for Claude Code extensions. Plugins extend
 ## Repository Structure
 
 ```
-werdnum-plugins/
+claude-code-plugins/
 ├── .claude-plugin/
 │   └── marketplace.json      # Marketplace configuration
 ├── plugins/                  # Individual plugin directories
@@ -40,7 +40,7 @@ Each plugin follows a standard structure with a manifest file (`.claude-plugin/p
 
 Install this local marketplace in Claude Code:
 ```
-/plugin marketplace add /data/ssd/sync/workspace/src/werdnum-plugins
+/plugin marketplace add /data/ssd/sync/workspace/src/claude-code-plugins
 ```
 
 Then install plugins from this marketplace:
