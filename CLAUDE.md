@@ -38,14 +38,21 @@ Each plugin follows a standard structure with a manifest file (`.claude-plugin/p
 
 ### Testing Plugins
 
-Install this local marketplace in Claude Code:
-```
-/plugin marketplace add /data/ssd/sync/workspace/src/claude-code-plugins
-```
+**Automatic setup (when working in this repo):**
 
-Then install plugins from this marketplace:
+The `.claude/settings.json` file in this repository automatically configures:
+- The local marketplace (`werdnum-plugins`) via `extraKnownMarketplaces`
+- Enabled plugins via `enabledPlugins`
+
+Simply start Claude Code from this repository directory, and plugins will be active.
+
+**Note:** Hooks are loaded at session startup. If you modify hook configurations, restart Claude Code to apply changes.
+
+**Manual installation (for use outside this repo):**
+
 ```
-/plugin install plugin-name@werdnum-plugins
+/plugin marketplace add /path/to/claude-code-plugins
+/plugin install bash-guard@werdnum-plugins
 ```
 
 ## Documentation
