@@ -261,7 +261,7 @@ def main() -> None:
     # If we have modifications, output them
     if updated_input:
         if use_updated_input:
-            # Use updatedInput feature (currently broken in Claude Code v2.0.34)
+            # Use updatedInput feature (supported since Claude Code v2.0.10)
             output = {
                 "hookSpecificOutput": {
                     "hookEventName": "PreToolUse",

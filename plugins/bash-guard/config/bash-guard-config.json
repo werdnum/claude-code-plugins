@@ -1,7 +1,7 @@
 {
-  "use_updated_input": false,
+  "use_updated_input": true,
   "default_timeout_ms": 120000,
-  "comment": "Configuration for Bash command validation and auto-fixing. Set use_updated_input to true to use updatedInput feature (currently broken in Claude Code v2.0.34), or false to suggest fixes via deny messages.",
+  "comment": "Configuration for Bash command validation and auto-fixing. Set use_updated_input to true to use updatedInput feature (supported since Claude Code v2.0.10), or false to suggest fixes via deny messages.",
   "command_rules": [
     {
       "regexp": "\\bgit\\s+commit\\b.*--no-verify",
