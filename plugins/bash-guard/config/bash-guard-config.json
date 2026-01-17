@@ -22,6 +22,11 @@
       "regexp": "\\bjj\\s+bookmark\\s+set\\s+(main|master)\\b",
       "action": "block",
       "explanation": "Direct modification of protected bookmarks (main/master) is not allowed. This is equivalent to pushing to protected branches in git. Please create a feature bookmark instead and submit changes through proper review workflow."
+    },
+    {
+      "regexp": "2>/dev/null.*\\|\\|.*echo",
+      "action": "block",
+      "explanation": "Redirecting stderr to /dev/null and then echoing an assumed error message hides the real error. Let the actual error message come through so you can see what really went wrong."
     }
   ],
   "timeout_requirements": [
