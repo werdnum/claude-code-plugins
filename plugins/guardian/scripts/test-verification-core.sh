@@ -226,7 +226,7 @@ check_test_status() {
         else
             empty
         end
-    ' 2>/dev/null | grep -i "SKIPPING TESTS APPROVED" | head -1)
+    ' 2>/dev/null | grep "SKIPPING TESTS APPROVED" | head -1)
 
     if [ -n "$SKIP_APPROVED" ]; then
         echo "DEBUG: User approved skipping tests" >&2
