@@ -108,7 +108,7 @@ check_test_status() {
 
         if [ ! -f "$REPORT_FILE" ]; then
             echo "❌ No test report found ($REPORT_FILE missing)" >&2
-            echo "You MUST run one of the following configured test commands in the foreground before committing:" >&2
+            echo "You MUST run one of the following configured test commands EXACTLY as shown (no additions, modifications, or substitutes accepted):" >&2
             echo "  $ALLOWED_COMMANDS_LIST" >&2
             return 1
         fi
@@ -144,7 +144,7 @@ check_test_status() {
             local REPORT_DATE=$(date -d @"$REPORT_TIME" 2>/dev/null || date -r "$REPORT_TIME" 2>/dev/null)
             echo "❌ Tests have not been run since modifying $MOST_RECENT_FILE at $FILE_DATE" >&2
             echo "Test report ($REPORT_FILE) is from: $REPORT_DATE" >&2
-            echo "You MUST run one of the following configured test commands in the foreground before committing:" >&2
+            echo "You MUST run one of the following configured test commands EXACTLY as shown (no additions, modifications, or substitutes accepted):" >&2
             echo "  $ALLOWED_COMMANDS_LIST" >&2
             return 1
         fi
@@ -215,6 +215,24 @@ check_test_status() {
         return 0
     fi
 
+    # --- Check for user approval to skip tests ---
+    local SKIP_APPROVED=$(cat "$TRANSCRIPT_PATH" | jq -r --arg mod_time "$LAST_MOD_TIME" '
+        select(.type == "user" and .message.content and .timestamp > $mod_time) |
+        if (.message.content | type) == "string" then
+            .message.content
+        elif (.message.content | type) == "array" then
+            .message.content[] | select(type == "string" or .type == "text") |
+            if type == "string" then . else .text end
+        else
+            empty
+        end
+    ' 2>/dev/null | grep -i "SKIPPING TESTS APPROVED" | head -1)
+
+    if [ -n "$SKIP_APPROVED" ]; then
+        echo "DEBUG: User approved skipping tests" >&2
+        return 0
+    fi
+
     # --- Find all test commands (full suite runs) after the last modification ---
     local TEST_COMMANDS=$(cat "$TRANSCRIPT_PATH" | jq -c --arg mod_time "$LAST_MOD_TIME" --arg test_patterns "$TEST_COMMAND_PATTERNS" '
         select(.type == "assistant" and .message.content and (.message.content | type == "array") and .timestamp > $mod_time) |
@@ -257,7 +275,7 @@ check_test_status() {
         if [ -z "$LAST_FULL_TEST" ]; then
             # No full passing test run exists in transcript - cannot use relaxed mode
             echo "❌ Tests have not been run since modifying $LAST_MOD_FILE at $LAST_MOD_TIME" >&2
-            echo "You MUST run one of the following configured test commands in the foreground before finishing:" >&2
+            echo "You MUST run one of the following configured test commands EXACTLY as shown (no additions, modifications, or substitutes accepted):" >&2
             echo "  $ALLOWED_COMMANDS_LIST" >&2
             echo "" >&2
             echo "Note: Relaxed test verification requires at least one full passing test run as a baseline." >&2
@@ -308,7 +326,7 @@ check_test_status() {
             # Non-test files were modified - require full test run
             local first_non_test=$(echo "$NON_TEST_MODS" | head -1)
             echo "❌ Tests have not been run since modifying $LAST_MOD_FILE at $LAST_MOD_TIME" >&2
-            echo "You MUST run one of the following configured test commands in the foreground before finishing:" >&2
+            echo "You MUST run one of the following configured test commands EXACTLY as shown (no additions, modifications, or substitutes accepted):" >&2
             echo "  $ALLOWED_COMMANDS_LIST" >&2
             echo "" >&2
             echo "Note: Non-test files have been modified since the last full test run (e.g., $first_non_test)," >&2
@@ -412,13 +430,13 @@ check_test_status() {
         fi
 
         echo "" >&2
-        echo "Alternatively, run a full test suite: $ALLOWED_COMMANDS_LIST" >&2
+        echo "Alternatively, run a full test suite EXACTLY as configured (no modifications): $ALLOWED_COMMANDS_LIST" >&2
         return 1
     fi
 
     # Relaxed mode disabled - use standard error message
     echo "❌ Tests have not been run since modifying $LAST_MOD_FILE at $LAST_MOD_TIME" >&2
-    echo "You MUST run one of the following configured test commands in the foreground before finishing:" >&2
+    echo "You MUST run one of the following configured test commands EXACTLY as shown (no additions, modifications, or substitutes accepted):" >&2
     echo "  $ALLOWED_COMMANDS_LIST" >&2
     return 1
 }
