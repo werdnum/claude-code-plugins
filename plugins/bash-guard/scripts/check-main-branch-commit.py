@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-PreToolHook script to prevent commits on protected branches (main/master).
+PreToolUse hook to prevent commits on protected branches (main/master).
 Reads input from stdin and returns 0 to allow, 2 to block with message.
 """
 
