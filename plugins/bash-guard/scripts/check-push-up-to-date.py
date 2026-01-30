@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-PreToolHook script to block git push if the branch is not up to date with main.
+PreToolUse hook to block git push if the branch is not up to date with main.
 
 Ensures feature branches are rebased onto the latest main before pushing,
 preventing stale branches from being pushed.
