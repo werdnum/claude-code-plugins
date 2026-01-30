@@ -57,19 +57,21 @@ if [ "$ONESHOT_MODE_ENABLED" = "true" ] && [ -n "$ONESHOT_MODE" ]; then
     if [ "$(echo "$STRICT_REQS" | jq -r '.gitRepo // true')" = "true" ] && ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
         ISSUES+=("❌ Not inside a git repository - You MUST initialize git and commit all work.")
     else
+        # Get current branch once for all subsequent checks
+        current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+
         # 2. Feature Branch Check
         if [ "$(echo "$STRICT_REQS" | jq -r '.featureBranch // true')" = "true" ]; then
-            current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
             if [ "$current_branch" = "main" ] || [ "$current_branch" = "master" ]; then
                 ISSUES+=("❌ You're on the $current_branch branch - Create a feature branch.")
             fi
         fi
-        
+
         # 3. Clean Working Dir Check
         if [ "$(echo "$STRICT_REQS" | jq -r '.cleanWorkingDir // true')" = "true" ] && [ -n "$(git status --porcelain)" ]; then
             ISSUES+=("❌ Uncommitted changes found - You MUST commit all changes.")
         fi
-        
+
         # 4. All Commits Pushed Check
         if [ "$(echo "$STRICT_REQS" | jq -r '.allCommitsPushed // true')" = "true" ]; then
             upstream=$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || true)
@@ -82,9 +84,9 @@ if [ "$ONESHOT_MODE_ENABLED" = "true" ] && [ -n "$ONESHOT_MODE" ]; then
             fi
         fi
 
-        # 5b. PR Created Check
+        # 5. PR Created Check
         if [ "$(echo "$STRICT_REQS" | jq -r '.prCreated // true')" = "true" ]; then
-            if command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; then
+            if [ -n "$current_branch" ] && command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; then
                 pr_count=$(gh pr list --head "$current_branch" --state open --json number --limit 1 2>/dev/null | jq 'length' 2>/dev/null || echo "0")
                 if [ "$pr_count" = "0" ]; then
                     ISSUES+=("❌ No PR created for branch '$current_branch' - You MUST create a PR with 'gh pr create'.")
@@ -93,7 +95,7 @@ if [ "$ONESHOT_MODE_ENABLED" = "true" ] && [ -n "$ONESHOT_MODE" ]; then
         fi
     fi
 
-    # 5. Tests Pass Check
+    # 6. Tests Pass Check
     if [ "$(echo "$STRICT_REQS" | jq -r '.testsPass // true')" = "true" ]; then
         TEST_VERIFICATION_CONFIG=$(echo "$CONFIG" | jq -r '.testVerification // {}')
         if ! check_test_status "$TRANSCRIPT_PATH" "$TEST_VERIFICATION_CONFIG"; then
