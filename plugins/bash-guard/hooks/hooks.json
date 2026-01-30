@@ -11,6 +11,10 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/scripts/check-main-branch-commit.py"
+          },
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/check-push-up-to-date.py"
           }
         ]
       },

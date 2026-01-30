@@ -152,6 +152,9 @@
         "comment_level": "Behavior on failure: 'warn' or 'error'. Note: This check uses the main 'testVerification' section for its core configuration (test commands, excludes, etc.)."
       },
 
+      "noPr": "warn",
+      "comment_noPr": "How to handle no PR created for current branch: 'ignore', 'warn', or 'error'",
+
       "checkRequestFulfilled": true,
       "comment_checkRequestFulfilled": "Warn if user request doesn't appear to be fulfilled"
     },
@@ -165,6 +168,7 @@
         "featureBranch": true,
         "cleanWorkingDir": true,
         "allCommitsPushed": true,
+        "prCreated": true,
         "testsPass": true
       },
       "allowFailureFile": ".claude/FAILURE_REASON",

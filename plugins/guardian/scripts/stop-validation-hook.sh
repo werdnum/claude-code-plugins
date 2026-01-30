@@ -81,6 +81,16 @@ if [ "$ONESHOT_MODE_ENABLED" = "true" ] && [ -n "$ONESHOT_MODE" ]; then
                 ISSUES+=("❌ No upstream branch set - You MUST push to a remote branch.")
             fi
         fi
+
+        # 5b. PR Created Check
+        if [ "$(echo "$STRICT_REQS" | jq -r '.prCreated // true')" = "true" ]; then
+            if command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; then
+                pr_count=$(gh pr list --head "$current_branch" --state open --json number --limit 1 2>/dev/null | jq 'length' 2>/dev/null || echo "0")
+                if [ "$pr_count" = "0" ]; then
+                    ISSUES+=("❌ No PR created for branch '$current_branch' - You MUST create a PR with 'gh pr create'.")
+                fi
+            fi
+        fi
     fi
 
     # 5. Tests Pass Check
@@ -149,7 +159,21 @@ if [ "$UNPUSHED_LEVEL" != "ignore" ]; then
     fi
 fi
 
-# 4. Test Status
+# 4. PR Created Check
+NO_PR_LEVEL=$(echo "$STOP_VALIDATION_CONFIG" | jq -r '.validation.noPr // "warn"')
+if [ "$NO_PR_LEVEL" != "ignore" ]; then
+    current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+    if [ -n "$current_branch" ] && [ "$current_branch" != "main" ] && [ "$current_branch" != "master" ]; then
+        if command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; then
+            pr_count=$(gh pr list --head "$current_branch" --state open --json number --limit 1 2>/dev/null | jq 'length' 2>/dev/null || echo "0")
+            if [ "$pr_count" = "0" ]; then
+                add_message "$NO_PR_LEVEL" "No PR created for branch '$current_branch'. Consider running 'gh pr create'."
+            fi
+        fi
+    fi
+fi
+
+# 5. Test Status
 TEST_VERIFICATION_CONFIG=$(echo "$STOP_VALIDATION_CONFIG" | jq -r '.validation.testVerification // {}')
 if [ "$(echo "$TEST_VERIFICATION_CONFIG" | jq -r '.enabled // false')" = "true" ]; then
     TEST_VERIFICATION_CORE_CONFIG=$(echo "$CONFIG" | jq -r '.testVerification // {}')
