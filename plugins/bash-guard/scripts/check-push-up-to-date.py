@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-PreToolUse hook to block git push if the branch is not up to date with main.
+PreToolHook script to block git push if the branch is not up to date with main.
 
 Ensures feature branches are rebased onto the latest main before pushing,
 preventing stale branches from being pushed.
@@ -11,6 +11,8 @@ import os
 import re
 import subprocess
 import sys
+from pathlib import Path
+from typing import Any
 
 
 def get_main_branch() -> str:
@@ -41,7 +43,7 @@ def get_main_branch() -> str:
 
 
 def get_current_branch() -> str | None:
-    """Get the current git branch name."""
+    """Get the current git branch name. Returns None if not on a branch."""
     result = subprocess.run(
         ["git", "branch", "--show-current"],
         capture_output=True,
@@ -50,7 +52,9 @@ def get_current_branch() -> str | None:
     )
     if result.returncode != 0:
         return None
-    return result.stdout.strip()
+    branch = result.stdout.strip()
+    # Return None for empty string (detached HEAD state)
+    return branch if branch else None
 
 
 def extract_push_branch(command: str) -> str | None:
@@ -75,9 +79,10 @@ def extract_push_branch(command: str) -> str | None:
         return None
 
     # Extract explicit branch from command patterns
-    # Pattern 1: git push origin local-branch:remote-branch -> use local-branch
+    # Pattern 1: git push [flags] [origin] local-branch:remote-branch -> use local-branch
+    # Only match flags that start with - or --
     match = re.search(
-        r"\bgit\s+push\s+(?:[-\w]+\s+)*(?:origin\s+)?(\S+):(\S+)",
+        r"\bgit\s+push\s+(?:-[-\w]+\s+)*(?:origin\s+)?(\S+):(\S+)",
         command,
     )
     if match:
@@ -86,10 +91,17 @@ def extract_push_branch(command: str) -> str | None:
             return local_branch
 
     # Pattern 2: git push [-u] [--set-upstream] [origin] branch-name
-    # Remove flags first to simplify parsing
-    simplified = re.sub(r"\s+-[a-zA-Z]+(?:\s+\S+)?", " ", command)
-    simplified = re.sub(r"\s+--[a-z-]+=\S+", " ", simplified)
-    simplified = re.sub(r"\s+--[a-z-]+", " ", simplified)
+    # Remove flags more carefully - only remove flag and its value for flags that take values
+    # Flags that take values: -u/--set-upstream (no value), --repo (value), -o/--push-option (value)
+    simplified = command
+
+    # Remove flags with required values (like --repo=value or --repo value, -o value)
+    simplified = re.sub(r"\s+--(?:repo|push-option)(?:=\S+|\s+\S+)", " ", simplified)
+    simplified = re.sub(r"\s+-o\s+\S+", " ", simplified)
+
+    # Remove flags without values (like -u, --set-upstream, --force, -f, etc.)
+    simplified = re.sub(r"\s+--[a-z][-a-z]*(?=\s|$)", " ", simplified)
+    simplified = re.sub(r"\s+-[a-zA-Z]+(?=\s|$)", " ", simplified)
 
     # Now parse: git push [remote] [branch]
     match = re.search(r"\bgit\s+push\s*(\S*)\s*(\S*)", simplified)
@@ -110,7 +122,11 @@ def extract_push_branch(command: str) -> str | None:
                 text=True,
                 check=False,
             )
-            remotes = result.stdout.strip().split("\n") if result.returncode == 0 else []
+            remotes = (
+                result.stdout.strip().split("\n")
+                if result.returncode == 0 and result.stdout.strip()
+                else []
+            )
             if arg1 not in remotes:
                 return arg1
 
@@ -177,29 +193,55 @@ def is_branch_up_to_date_with_main(branch: str, main_branch: str) -> tuple[bool,
     return False, f"Branch is {commits_behind} commit(s) behind origin/{main_branch}"
 
 
-def load_config() -> dict:
-    """Load configuration from bash-guard config files."""
-    plugin_root = os.environ.get(
-        "CLAUDE_PLUGIN_ROOT",
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+def merge_config(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    """Deep merge two configuration dictionaries."""
+    result = base.copy()
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = merge_config(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
+def load_config() -> dict[str, Any]:
+    """Load configuration with layered override support."""
+    # Get plugin root from environment
+    plugin_root = Path(
+        os.environ.get("CLAUDE_PLUGIN_ROOT", Path(__file__).parent.parent)
     )
 
-    config_locations = [
-        os.path.join(plugin_root, "config", "bash-guard-config.json"),
-        os.path.expanduser("~/.config/claude-code/bash-guard.json"),
-        os.path.join(os.getcwd(), ".claude", "bash-guard.json"),
-    ]
+    # Load default configuration
+    default_config_path = plugin_root / "config" / "bash-guard-config.json"
+    try:
+        with open(default_config_path, encoding="utf-8") as f:
+            config = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        print(
+            f"Warning: Could not load default config from {default_config_path}: {e}",
+            file=sys.stderr,
+        )
+        config = {}
 
-    config = {}
-    for config_path in config_locations:
-        if os.path.exists(config_path):
-            try:
-                with open(config_path, encoding="utf-8") as f:
-                    layer_config = json.load(f)
-                    # Simple merge for our purposes
-                    config.update(layer_config)
-            except (FileNotFoundError, json.JSONDecodeError):
-                continue
+    # Load global overrides if they exist
+    global_config_path = Path.home() / ".config" / "claude-code" / "bash-guard.json"
+    if global_config_path.exists():
+        try:
+            with open(global_config_path, encoding="utf-8") as f:
+                global_config = json.load(f)
+                config = merge_config(config, global_config)
+        except (FileNotFoundError, json.JSONDecodeError):
+            pass
+
+    # Load project overrides if they exist
+    project_config_path = Path.cwd() / ".claude" / "bash-guard.json"
+    if project_config_path.exists():
+        try:
+            with open(project_config_path, encoding="utf-8") as f:
+                project_config = json.load(f)
+                config = merge_config(config, project_config)
+        except (FileNotFoundError, json.JSONDecodeError):
+            pass
 
     return config
 
@@ -226,7 +268,7 @@ def main() -> None:
 
     # Load config to check if this check is enabled
     config = load_config()
-    push_config = config.get("push_up_to_date_check", {})
+    push_config = config.get("pushUpToDateCheck", {})
     if not push_config.get("enabled", True):
         sys.exit(0)
 
@@ -243,10 +285,16 @@ def main() -> None:
         sys.exit(0)
 
     # Fetch to get latest state
-    print(f"Fetching latest from origin to check if '{branch}' is up to date with '{main_branch}'...", file=sys.stderr)
+    print(
+        f"Fetching latest from origin to check if '{branch}' is up to date with '{main_branch}'...",
+        file=sys.stderr,
+    )
     if not fetch_remote():
         # If fetch fails, allow the push (network issues shouldn't block work)
-        print("Warning: Could not fetch from origin, skipping up-to-date check", file=sys.stderr)
+        print(
+            "Warning: Could not fetch from origin, skipping up-to-date check",
+            file=sys.stderr,
+        )
         sys.exit(0)
 
     # Check if branch is up to date with main
@@ -255,12 +303,15 @@ def main() -> None:
     if not is_up_to_date:
         print(f"BLOCKED: {message}", file=sys.stderr)
         print("", file=sys.stderr)
-        print(f"Your branch '{branch}' is not up to date with '{main_branch}'.", file=sys.stderr)
+        print(
+            f"Your branch '{branch}' is not up to date with '{main_branch}'.",
+            file=sys.stderr,
+        )
         print("Please rebase or merge before pushing:", file=sys.stderr)
         print("", file=sys.stderr)
-        print(f"  git fetch origin", file=sys.stderr)
+        print("  git fetch origin", file=sys.stderr)
         print(f"  git rebase origin/{main_branch}", file=sys.stderr)
-        print("  # or: git merge origin/{main_branch}", file=sys.stderr)
+        print(f"  # or: git merge origin/{main_branch}", file=sys.stderr)
         print("", file=sys.stderr)
         print("Then try pushing again.", file=sys.stderr)
         sys.exit(2)
