@@ -38,6 +38,10 @@ def deep_merge_config(base: dict, overlay: dict) -> dict:
                 result[key] = base_value + overlay_value
             else:
                 result[key] = overlay_value
+        elif key in array_fields:
+            # Skip non-list values for array fields - don't let null/invalid
+            # values wipe out the default rules from the plugin config
+            continue
         elif isinstance(overlay_value, dict) and key in result and isinstance(result[key], dict):
             # Recursively merge dicts
             result[key] = deep_merge_config(result[key], overlay_value)
@@ -56,10 +60,13 @@ def load_config() -> dict:
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
     )
 
+    # Use CLAUDE_PROJECT_DIR if available, fall back to CWD
+    project_dir = os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd())
+
     config_locations = [
         os.path.join(plugin_root, "config", "bash-guard-config.json"),
         os.path.expanduser("~/.config/claude-code/bash-guard.json"),
-        os.path.join(os.getcwd(), ".claude", "bash-guard.json"),
+        os.path.join(project_dir, ".claude", "bash-guard.json"),
     ]
 
     config = {}
