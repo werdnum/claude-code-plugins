@@ -9,7 +9,7 @@
       "explanation": "Using --no-verify bypasses important pre-commit hooks. Please allow the hooks to run to ensure code quality."
     },
     {
-      "regexp": "timeout\\s+\\d+\\s+.*",
+      "regexp": "\\btimeout\\s+(?:\\S+\\s+)*[\\d.]+[smhd]?\\s+",
       "action": "block",
       "explanation": "Use the Bash tool's timeout parameter instead of the timeout command for better control and consistency."
     },
