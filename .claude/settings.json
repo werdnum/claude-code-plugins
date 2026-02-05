@@ -2,15 +2,15 @@
   "extraKnownMarketplaces": {
     "werdnum-plugins": {
       "source": {
-        "source": "local",
+        "source": "directory",
         "path": "."
       }
     }
   },
-  "enabledPlugins": [
-    "bash-guard@werdnum-plugins",
-    "format-and-lint@werdnum-plugins",
-    "guardian@werdnum-plugins",
-    "development-agents@werdnum-plugins"
-  ]
+  "enabledPlugins": {
+    "bash-guard@werdnum-plugins": true,
+    "format-and-lint@werdnum-plugins": true,
+    "guardian@werdnum-plugins": true,
+    "development-agents@werdnum-plugins": true
+  }
 }
