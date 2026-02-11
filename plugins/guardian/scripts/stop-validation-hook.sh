@@ -195,7 +195,7 @@ if [ ${#VALIDATION_MESSAGES[@]} -gt 0 ]; then
         exit "$(echo "$STOP_VALIDATION_CONFIG" | jq -r '.returnCode // 2')"
     else
         echo "You may proceed, but please consider addressing warnings." >&2
-        exit 0
+        exit 2
     fi
 fi
 
