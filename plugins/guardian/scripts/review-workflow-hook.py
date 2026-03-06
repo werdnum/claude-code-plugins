@@ -501,6 +501,15 @@ class ReviewHook:
 
             # Process based on exit code and sentinels
             if exit_code == 0:
+                if has_bypass or has_reviewed:
+                    # Review passed - no need for bypass/reviewed sentinels
+                    print(
+                        "Code review passed with no issues. "
+                        "Remove the bypass/acknowledgment sentinel from your commit message - "
+                        "it is not needed when there are no issues to bypass.",
+                        file=sys.stderr,
+                    )
+                    sys.exit(2)
                 sys.exit(0)
             elif exit_code == 1:
                 # Minor issues
@@ -516,10 +525,11 @@ class ReviewHook:
                     formatted_issues = self._format_issues(issues)
                     print(
                         f"Code review found minor issues:\n\n{formatted_issues}\n\n"
-                        f"These issues should be fixed before committing.\n"
-                        f"If you have a specific reason not to fix them, you may acknowledge them by adding:\n"
+                        f"Fix these issues, then commit again normally (without any sentinel phrase).\n"
+                        f"The review will re-run automatically on the updated code.\n\n"
+                        f"Only if you have a specific reason NOT to fix them, you may acknowledge by adding:\n"
                         f"• Reviewed: cache-{cache_key_prefix}\n\n"
-                        f"However, fixing the issues is strongly preferred over acknowledgment.",
+                        f"Do NOT use Bypass-Review or Reviewed if you have already fixed the issues.",
                         file=sys.stderr,
                     )
                     sys.exit(2)
@@ -540,10 +550,12 @@ class ReviewHook:
                 print(
                     f"BLOCKING issues found that cannot be bypassed with 'Reviewed' acknowledgment:\n\n"
                     f"{formatted_issues}\n\n"
-                    "These serious issues must be fixed before committing.\n"
+                    "Fix these issues, then commit again normally (without any sentinel phrase).\n"
+                    "The review will re-run automatically on the updated code.\n"
                     "'Reviewed' acknowledgment is only for minor issues.\n\n"
-                    "If you believe the review is incorrect or contradicts the user's explicit instructions, "
-                    "escalate for manual decision: Bypass-Review: <why the review is incorrect>",
+                    "Only if you believe the review is incorrect or contradicts the user's explicit instructions, "
+                    "escalate for manual decision: Bypass-Review: <why the review is incorrect>\n"
+                    "Do NOT use Bypass-Review if you have already fixed the issues.",
                     file=sys.stderr,
                 )
                 sys.exit(2)
@@ -553,9 +565,11 @@ class ReviewHook:
                 formatted_issues = self._format_issues(issues)
                 print(
                     f"Code review found BLOCKING issues:\n\n{formatted_issues}\n\n"
-                    "These serious issues must be fixed before committing.\n\n"
-                    "If you believe the review is incorrect or contradicts the user's explicit instructions, "
-                    "you may escalate for manual decision: Bypass-Review: <why the review is incorrect>",
+                    "Fix these issues, then commit again normally (without any sentinel phrase).\n"
+                    "The review will re-run automatically on the updated code.\n\n"
+                    "Only if you believe the review is incorrect or contradicts the user's explicit instructions, "
+                    "you may escalate for manual decision: Bypass-Review: <why the review is incorrect>\n"
+                    "Do NOT use Bypass-Review if you have already fixed the issues.",
                     file=sys.stderr,
                 )
                 sys.exit(2)
