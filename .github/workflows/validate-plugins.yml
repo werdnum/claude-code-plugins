@@ -15,17 +15,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Claude Code CLI
-        run: |
-          # Download and install the Claude Code CLI (native installation)
-          curl -fsSL https://claude.ai/install.sh | bash
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
 
-          # Add to PATH for subsequent steps
-          echo "$HOME/.claude/bin" >> $GITHUB_PATH
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
 
       - name: Verify Claude CLI installation
-        run: |
-          claude --version
+        run: claude --version
 
       - name: Validate marketplace manifest
         run: |
