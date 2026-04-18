@@ -1,9 +1,0 @@
-{
-  "name": "jj-vcs",
-  "version": "1.0.0",
-  "description": "Jujutsu (jj) VCS workflow skill - teaches Claude to work with jj using its native idioms (working copy as commit, move changes between commits, first-class conflicts, undo via operation log)",
-  "author": {
-    "name": "Andrew Garrett",
-    "email": "andrewgarrett@google.com"
-  }
-}

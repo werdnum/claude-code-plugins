@@ -48,10 +48,11 @@
       "description": "Manage workspace state for reuse between tasks - auto-switch from merged PR branches, fetch updates, and block stale operations"
     },
     {
-      "name": "jj-vcs",
-      "source": "./plugins/jj-vcs",
+      "name": "skills",
+      "source": "./plugins/skills",
       "version": "1.0.0",
-      "description": "Teaches Claude the 'jj way' of version control - working copy as commit, moving changes between commits with squash, first-class conflicts, and undo via operation log"
+      "description": "Collection of assorted skills - currently includes jj-vcs (Jujutsu workflow); designed to grow with additional skills"
     }
   ]
 }
+
