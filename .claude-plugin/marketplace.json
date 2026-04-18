@@ -46,6 +46,13 @@
       "source": "./plugins/workspace-reuse",
       "version": "1.0.0",
       "description": "Manage workspace state for reuse between tasks - auto-switch from merged PR branches, fetch updates, and block stale operations"
+    },
+    {
+      "name": "skills",
+      "source": "./plugins/skills",
+      "version": "1.0.0",
+      "description": "Collection of assorted skills - currently includes jj-vcs (Jujutsu workflow); designed to grow with additional skills"
     }
   ]
 }
+
