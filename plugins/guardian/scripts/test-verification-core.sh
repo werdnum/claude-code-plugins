@@ -7,8 +7,8 @@
 load_guardian_config() {
     local base_config_path="${CLAUDE_PLUGIN_ROOT}/config/guardian-config.json"
     local user_config_path="$HOME/.config/claude-code/guardian.json"
-    local project_config_path
-    project_config_path=$(pwd)/.claude/guardian.json
+    local project_dir="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+    local project_config_path="${project_dir}/.claude/guardian.json"
 
     local merged_config="{}"
 
