@@ -60,7 +60,8 @@ class ReviewHook:
                 pass
 
         # Load project overrides if they exist
-        project_config_path = self.repo_root / ".claude" / "guardian.json"
+        project_dir = Path(os.environ.get("CLAUDE_PROJECT_DIR", self.repo_root))
+        project_config_path = project_dir / ".claude" / "guardian.json"
         if project_config_path.exists():
             try:
                 with open(project_config_path, encoding="utf-8") as f:

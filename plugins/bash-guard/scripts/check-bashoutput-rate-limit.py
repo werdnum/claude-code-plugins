@@ -27,10 +27,11 @@ def load_config() -> dict:
     # Try layered config loading: plugin defaults → global → project
     plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", os.path.dirname(__file__))
 
+    project_dir = os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd())
     config_locations = [
         os.path.join(plugin_root, "config", "bash-guard-config.json"),
         os.path.expanduser("~/.config/claude-code/bash-guard.json"),
-        os.path.join(os.getcwd(), ".claude", "bash-guard.json"),
+        os.path.join(project_dir, ".claude", "bash-guard.json"),
     ]
 
     config = {}

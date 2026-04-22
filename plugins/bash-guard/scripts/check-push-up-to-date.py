@@ -234,7 +234,8 @@ def load_config() -> dict[str, Any]:
             pass
 
     # Load project overrides if they exist
-    project_config_path = Path.cwd() / ".claude" / "bash-guard.json"
+    project_dir = Path(os.environ.get("CLAUDE_PROJECT_DIR", Path.cwd()))
+    project_config_path = project_dir / ".claude" / "bash-guard.json"
     if project_config_path.exists():
         try:
             with open(project_config_path, encoding="utf-8") as f:
