@@ -8,49 +8,49 @@
     {
       "name": "bash-guard",
       "source": "./plugins/bash-guard",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "description": "Safety checks for Bash commands with auto-fix suggestions - prevents dangerous operations, enforces timeouts, blocks commits to main branch, and suggests command rewrites"
     },
     {
       "name": "format-and-lint",
       "source": "./plugins/format-and-lint",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Auto-format and lint files after edits with support for Python, TypeScript, and Angular"
     },
     {
       "name": "guardian",
       "source": "./plugins/guardian",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Test verification, pre-commit review workflow, and stop validation to ensure code quality"
     },
     {
       "name": "development-agents",
       "source": "./plugins/development-agents",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Collection of specialized development agents and commands for common workflows"
     },
     {
       "name": "python-utils",
       "source": "./plugins/python-utils",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Python development utilities including advanced refactoring capabilities with rope"
     },
     {
       "name": "jj-snapshot",
       "source": "./plugins/jj-snapshot",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Automatically snapshot repository state with Jujutsu (jj) after each file edit"
     },
     {
       "name": "workspace-reuse",
       "source": "./plugins/workspace-reuse",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Manage workspace state for reuse between tasks - auto-switch from merged PR branches, fetch updates, and block stale operations"
     },
     {
       "name": "skills",
       "source": "./plugins/skills",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Collection of assorted skills - currently includes jj-vcs (Jujutsu workflow); designed to grow with additional skills"
     }
   ]

@@ -79,6 +79,15 @@ Then install plugins from this marketplace:
 
 ## Development Practices
 
+### Version Bumping
+
+**ALWAYS bump the plugin's version when making changes to it.** This applies to any change to a plugin's contents (commands, agents, skills, hooks, scripts, manifests, etc.).
+
+- Update `version` in the plugin's `.claude-plugin/plugin.json`
+- Update the matching `version` entry in `.claude-plugin/marketplace.json`
+- Use semantic versioning: PATCH for fixes, MINOR for new features, MAJOR for breaking changes
+- Both files must stay in sync — installers read versions from `marketplace.json`, but the plugin manifest is the source of truth
+
 ### Commit Messages
 
 Write descriptive, detailed, and comprehensive commit messages. Conventional commit prefixes (feat:, fix:, etc.) should only be used if they add clarity to the message.
