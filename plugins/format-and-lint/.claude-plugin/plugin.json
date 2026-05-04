@@ -1,6 +1,6 @@
 {
   "name": "format-and-lint",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Auto-format and lint files after edits with support for Python, TypeScript, and Angular",
   "author": {
     "name": "Andrew Garrett",

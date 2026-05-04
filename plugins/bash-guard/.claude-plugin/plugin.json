@@ -1,6 +1,6 @@
 {
   "name": "bash-guard",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Safety checks for Bash commands - prevents dangerous operations, enforces timeouts, blocks commits to main branch, and rate limits BashOutput polling",
   "author": {
     "name": "Andrew Garrett",
