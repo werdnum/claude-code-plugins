@@ -1,6 +1,6 @@
 {
   "name": "guardian",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Test verification, pre-commit review workflow, and stop validation to ensure code quality",
   "author": {
     "name": "Andrew Garrett",

@@ -96,6 +96,23 @@ Bypass mechanisms:
 - `Reviewed: cache-{id}` for minor issues
 - `Bypass-Review: {reason}` for escalation to user
 
+#### Code Review Script (`scripts/review-changes.py`)
+
+The bundled review script can also be invoked directly. It supports three modes:
+
+- *(default)* — review staged changes (`git diff --cached`)
+- `--commit` — review the most recent commit (`git show HEAD`)
+- `--branch [BASE]` — review the entire current branch versus `BASE` (default
+  `origin/main`). Intended as a pre-PR review step that covers all commits on
+  the branch, not just the latest.
+
+Example pre-PR usage:
+
+```bash
+git fetch origin main
+uv run plugins/guardian/scripts/review-changes.py --branch origin/main
+```
+
 ### Stop Validation
 
 Validates work is complete before stopping session:
