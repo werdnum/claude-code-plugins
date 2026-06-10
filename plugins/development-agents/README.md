@@ -31,7 +31,7 @@ Use for test failures, unexpected behavior, performance issues, or technical pro
 
 ### focused-coder
 
-**Model**: Haiku | **Color**: Orange
+**Model**: Sonnet | **Color**: Orange
 
 Use for well-defined, self-contained coding tasks. Works excellently in parallel with other focused-coder instances.
 

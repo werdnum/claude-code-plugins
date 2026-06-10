@@ -183,7 +183,7 @@ Collection of specialized AI agents for focused development tasks.
 
 **Included Agents**:
 - **systematic-debugger** (Opus): Methodical bug investigation
-- **focused-coder** (Haiku): Self-contained implementation tasks
+- **focused-coder** (Sonnet): Self-contained implementation tasks
 - **mechanical-coder**: Repetitive changes with ast-grep
 - **codebase-researcher**: Code exploration and understanding
 - **external-research-specialist**: Web research and documentation
