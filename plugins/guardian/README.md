@@ -6,7 +6,7 @@ Ensures code quality through test verification, pre-commit review workflows, and
 
 - **Test Verification** (PreToolUse): Ensures tests run and pass before commits
 - **Pre-Commit Review** (PreToolUse): Executes git adds, runs pre-commit hooks, optional code review
-- **Stop Validation** (Stop hook): "Keep going" prompts to ensure work is complete
+- **Stop Validation** (Stop hook): Quality checks (lint, commits, tests, PR) before the session ends
 
 All features are individually toggleable via configuration.
 
@@ -115,19 +115,29 @@ uv run plugins/guardian/scripts/review-changes.py --branch origin/main
 
 ### Stop Validation
 
-Validates work is complete before stopping session:
+Runs concrete quality checks against repository state before the session ends:
 
 **Regular Mode**:
 - Runs format/lint commands
 - Warns about uncommitted changes
 - Warns about unpushed commits
 - Checks test status
-- Prompts "Have you fulfilled the user's request?"
 
 **Oneshot Mode** (ONESHOT_MODE=true):
 - Strict requirements: git repo, feature branch, clean working dir, all commits pushed, tests pass
 - Blocks exit until all requirements met
 - Allow acknowledged failure with `.claude/FAILURE_REASON` file
+
+**Background tasks**: When background tasks or scheduled (cron) tasks are still
+in flight, the hook allows the session to stop instead of running validation.
+Claude Code re-awakens the session when that work completes, so stopping is
+expected rather than premature — and blocking would only busy-wait.
+
+> **Note:** Stop validation no longer includes an LLM "keep going" prompt that
+> judged whether to block stopping when actionable work remained. That
+> overlapped with Claude Code's built-in [`/goal`](https://code.claude.com/docs/en/goal)
+> (itself a session-scoped prompt-based Stop hook). Use `/goal` to keep a
+> session working toward a completion condition.
 
 ## Configuration
 
@@ -214,4 +224,4 @@ Files matching these patterns don't require tests:
 - Test verification uses transcript parsing (Claude Code session history)
 - Falls back to `.report.json` when transcript >5 minutes old
 - Pre-commit workflow stashes/restores unstaged changes automatically
-- Stop validation provides "keep going" feedback to ensure completeness
+- Stop validation runs quality checks (lint, git state, tests) and is skipped while background or scheduled tasks are still in flight

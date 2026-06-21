@@ -153,10 +153,7 @@
       },
 
       "noPr": "warn",
-      "comment_noPr": "How to handle no PR created for current branch: 'ignore', 'warn', or 'error'",
-
-      "checkRequestFulfilled": true,
-      "comment_checkRequestFulfilled": "Warn if user request doesn't appear to be fulfilled"
+      "comment_noPr": "How to handle no PR created for current branch: 'ignore', 'warn', or 'error'"
     },
 
     "oneshotMode": {

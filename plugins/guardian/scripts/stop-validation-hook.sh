@@ -28,6 +28,19 @@ if [ "$STOP_HOOK_ACTIVE" = "true" ]; then
     exit 0
 fi
 
+# If there are background tasks or scheduled (cron) tasks still in flight, allow
+# exit. Claude Code now runs work in the background (background shells, agents,
+# Monitor subscriptions) and re-awakens the session when those finish, so a stop
+# here is expected rather than premature task abandonment. Blocking would force a
+# busy-wait. These fields were added to the Stop hook payload in Claude Code
+# v2.1.181; `length` works for both arrays and objects and yields 0 when absent.
+BACKGROUND_TASK_COUNT=$(echo "$JSON_INPUT" | jq -r '(.background_tasks // []) | length' 2>/dev/null || echo 0)
+SESSION_CRON_COUNT=$(echo "$JSON_INPUT" | jq -r '(.session_crons // []) | length' 2>/dev/null || echo 0)
+if [ "${BACKGROUND_TASK_COUNT:-0}" -gt 0 ] || [ "${SESSION_CRON_COUNT:-0}" -gt 0 ]; then
+    echo "Background tasks or scheduled tasks still in flight; allowing stop." >&2
+    exit 0
+fi
+
 # --- Load configuration ---
 CONFIG=$(load_guardian_config)
 STOP_VALIDATION_CONFIG=$(echo "$CONFIG" | jq -r '.stopValidation // {}')
