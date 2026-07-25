@@ -68,10 +68,11 @@
   },
 
   "preCommitReview": {
-    "description": "Pre-commit workflow: format, lint, run pre-commit hooks, and LLM code review",
+    "description": "Pre-commit workflow: execute git adds, format, lint, and run pre-commit hooks",
+    "comment_description": "No LLM code review runs here. review-changes.py is a manual tool - see scripts/review-changes.py in the marketplace repo.",
     "enabled": true,
     "skipInRemote": true,
-    "comment_skipInRemote": "Skip in remote sessions (LLM review is expensive)",
+    "comment_skipInRemote": "Skip in remote sessions",
 
     "triggers": {
       "gitCommit": true,
@@ -101,27 +102,7 @@
         "enabled": true,
         "maxIterations": 5,
         "comment_maxIterations": "Max iterations when hooks modify files (prevents infinite loops)"
-      },
-
-      "runCodeReview": {
-        "description": "LLM-based code review using bundled review-changes.py script",
-        "enabled": false,
-        "comment_enabled": "Disabled by default (expensive). Enable in project config. Requires OPENROUTER_KEY or configured llm model.",
-        "cacheKeyLength": 12,
-        "comment_cacheKeyLength": "Length of cache key prefix for 'Reviewed: cache-XXXX' sentinel"
       }
-    },
-
-    "bypassMechanisms": {
-      "description": "How to bypass review warnings/blocks",
-      "reviewedSentinel": "Reviewed: cache-{id}",
-      "comment_reviewedSentinel": "Add to commit message to acknowledge minor issues",
-      "bypassSentinel": "Bypass-Review: {reason}",
-      "comment_bypassSentinel": "Add to commit message to escalate blocking issues to user",
-      "allowReviewedForMinor": true,
-      "comment_allowReviewedForMinor": "Allow 'Reviewed' sentinel for minor/warning issues",
-      "requireBypassForBlocking": true,
-      "comment_requireBypassForBlocking": "Require 'Bypass-Review' with reason for blocking issues"
     }
   },
 

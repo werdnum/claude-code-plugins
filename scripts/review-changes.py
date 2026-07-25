@@ -7,8 +7,22 @@
 # ]
 # ///
 """
-Enhanced code review script using LLM with tools for better context understanding.
-Replaces the bash-based review-changes.sh with Python + llm library.
+Standalone code review script using an LLM with tools for better context understanding.
+
+Run it by hand against staged changes, the last commit, or a whole branch:
+
+    uv run scripts/review-changes.py                       # staged changes
+    uv run scripts/review-changes.py --commit              # HEAD
+    uv run scripts/review-changes.py --branch origin/main  # whole branch
+
+Review guidelines come from REVIEW_GUIDELINES.md in the target repository if present,
+otherwise from the copy sitting next to this script.
+
+This was previously bundled with the guardian plugin, whose pre-commit hook ran it
+automatically on every commit. Nothing invokes it automatically any more: a review that
+fails open -- as it did whenever no API key was configured -- is worse than no review,
+because it looks like one that passed. It lives outside the plugin now because no hook
+calls it.
 
 The CodeReviewToolbox class provides tools for reading files, searching patterns,
 and submitting reviews. These tools are actively used during the review process.
@@ -19,7 +33,6 @@ import argparse
 import hashlib
 import json
 import logging
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -763,23 +776,19 @@ def review_changes(
 
     repo_root = Path(result.stdout.strip())
 
-    # Determine guidelines file location (repo-specific or plugin bundled)
+    # Determine guidelines file location (target repo takes precedence over the default
+    # copy that ships alongside this script)
     guidelines_path = repo_root / "REVIEW_GUIDELINES.md"
     if not guidelines_path.exists():
-        # Fall back to plugin's bundled template
-        plugin_root = Path(
-            os.environ.get("CLAUDE_PLUGIN_ROOT", Path(__file__).parent.parent)
-        )
-        guidelines_path = plugin_root / "templates" / "REVIEW_GUIDELINES.md"
+        guidelines_path = Path(__file__).resolve().parent / "REVIEW_GUIDELINES.md"
         if not guidelines_path.exists():
             print(
-                "Error: REVIEW_GUIDELINES.md not found in repository or plugin templates",
+                "Error: REVIEW_GUIDELINES.md not found in the repository or next to "
+                f"{Path(__file__).name}",
                 file=sys.stderr,
             )
             sys.exit(1)
-        print(
-            f"Using bundled guidelines from plugin: {guidelines_path}", file=sys.stderr
-        )
+        print(f"Using default guidelines: {guidelines_path}", file=sys.stderr)
 
     # Redirect stdout to stderr for human output if JSON mode
     if output_json:

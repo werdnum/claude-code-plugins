@@ -159,7 +159,7 @@ Ensures code quality through test verification, pre-commit workflows, and comple
 
 **Key Features**:
 - **Test Verification**: Ensures tests run and pass before commits
-- **Pre-Commit Review**: Executes git adds, runs pre-commit hooks, optional code review
+- **Pre-Commit Workflow**: Executes git adds, runs formatters/linters and pre-commit hooks
 - **Stop Validation**: "Keep going" prompts to ensure work completeness
 - **Oneshot Mode**: Strict requirements for automated/CI environments
 
@@ -527,6 +527,9 @@ claude-code-plugins/
 │   ├── format-and-lint/
 │   ├── guardian/
 │   └── development-agents/
+├── scripts/                      # Standalone tools (not part of any plugin)
+│   ├── review-changes.py         # Manual LLM code review
+│   └── REVIEW_GUIDELINES.md      # Default guidelines for the above
 ├── PLUGIN_PLAN.md                # Implementation plan
 ├── CLAUDE.md                     # Project instructions
 └── README.md                     # This file

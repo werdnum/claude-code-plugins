@@ -5,7 +5,7 @@ Ensures code quality through test verification, pre-commit review workflows, and
 ## Features
 
 - **Test Verification** (PreToolUse): Ensures tests run and pass before commits
-- **Pre-Commit Review** (PreToolUse): Executes git adds, runs pre-commit hooks, optional code review
+- **Pre-Commit Workflow** (PreToolUse): Executes git adds, runs formatters/linters and pre-commit hooks
 - **Stop Validation** (Stop hook): Quality checks (lint, commits, tests, PR) before the session ends
 
 All features are individually toggleable via configuration.
@@ -18,9 +18,8 @@ All features are individually toggleable via configuration.
   curl -LsSf https://astral.sh/uv/install.sh | sh
   ```
 - **Python 3.11+**: Available on system (uv will use it automatically)
-- **Optional**: Project scripts with their own dependencies
-  - `scripts/review-changes.py` requires `llm`, `llm-gemini`, `llm-openrouter` (has PEP 723 annotations)
-  - Install via: `uv pip install llm llm-gemini llm-openrouter`
+
+No hook in this plugin calls an LLM.
 
 ## Installation
 
@@ -82,36 +81,28 @@ When only test files have been modified since the last full test run, the hook a
 
 The `singleTestCommand` uses `{file}` as a placeholder for the test file path. If not configured, the hook suggests appropriate commands based on file extension.
 
-### Pre-Commit Review
+### Pre-Commit Workflow
 
-Runs workflow before git commits and PR creation:
+Runs before git commits and PR creation:
 
 1. Executes any `git add` commands in the commit command
 2. Stashes unstaged changes to isolate staged changes
-3. Runs pre-commit hooks with auto-fix iterations (max 5)
-4. Optional external code review script
+3. Runs formatters/linters (disabled by default)
+4. Runs pre-commit hooks with auto-fix iterations (max 5)
 5. Restores stashed changes after workflow
 
-Bypass mechanisms:
-- `Reviewed: cache-{id}` for minor issues
-- `Bypass-Review: {reason}` for escalation to user
+Every gate here is deterministic — it either runs a real command or does nothing.
 
-#### Code Review Script (`scripts/review-changes.py`)
-
-The bundled review script can also be invoked directly. It supports three modes:
-
-- *(default)* — review staged changes (`git diff --cached`)
-- `--commit` — review the most recent commit (`git show HEAD`)
-- `--branch [BASE]` — review the entire current branch versus `BASE` (default
-  `origin/main`). Intended as a pre-PR review step that covers all commits on
-  the branch, not just the latest.
-
-Example pre-PR usage:
-
-```bash
-git fetch origin main
-uv run plugins/guardian/scripts/review-changes.py --branch origin/main
-```
+> **Note:** This hook no longer runs an automatic LLM code review. The review shelled
+> out to `review-changes.py` (defaulting to Gemini) on every commit, and with no API key
+> configured it failed open: the hook reported "no specific issues available" and let the
+> commit through regardless of the diff, which reads like a review that passed. The
+> `Reviewed: cache-{id}` and `Bypass-Review: {reason}` commit-message sentinels went with
+> it — there is nothing left to acknowledge or bypass.
+>
+> The review script itself was worth keeping and now lives outside the plugin, at
+> `scripts/review-changes.py` in the marketplace repository. Run it by hand when you want
+> a review, where a missing API key is a visible error rather than a silent pass.
 
 ### Stop Validation
 
