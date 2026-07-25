@@ -109,12 +109,12 @@ Automatically configures all werdnum-plugins for your project through intelligen
 
 **What it does**:
 - Auto-detects project characteristics (languages, test commands, pre-commit frameworks, etc.)
-- Asks critical configuration questions (branch protection, test verification, code review)
+- Asks critical configuration questions (branch protection, completion checks)
 - Generates/updates configuration files for all plugins:
   - `.claude/settings.json` - Marketplace and plugin enablement
   - `.claude/bash-guard.json` - Command safety and timeouts
   - `.claude/format-lint.json` - Formatting and linting
-  - `.claude/guardian.json` - Test verification and workflows
+  - `.claude/guardian.json` - Pre-commit workflow and stop validation
 - Intelligently merges with existing configurations
 
 **Supported pre-commit frameworks**:

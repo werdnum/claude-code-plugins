@@ -1,12 +1,12 @@
 # guardian
 
-Ensures code quality through test verification, pre-commit review workflows, and stop validation.
+Keeps a session's work from being left unfinished: runs the pre-commit workflow before
+commits, and checks at session end that the work is committed, pushed, and proposed.
 
 ## Features
 
-- **Test Verification** (PreToolUse): Ensures tests run and pass before commits
 - **Pre-Commit Workflow** (PreToolUse): Executes git adds, runs formatters/linters and pre-commit hooks
-- **Stop Validation** (Stop hook): Quality checks (lint, commits, tests, PR) before the session ends
+- **Stop Validation** (Stop hook): Checks uncommitted changes, unpushed commits, and missing PRs before the session ends
 
 All features are individually toggleable via configuration.
 
@@ -30,56 +30,11 @@ No hook in this plugin calls an LLM.
 ## Quick Start
 
 Works out of the box with:
-- Test verification for `poe test` and `pytest` commands
 - Pre-commit hook execution (if `.pre-commit-config.yaml` exists)
-- Stop validation for uncommitted changes and test status
+- Stop validation for uncommitted changes, unpushed commits, and missing PRs
+  (opt-in: `stopValidation.enabled` defaults to `false`)
 
 ## Features
-
-### Test Verification
-
-Ensures tests have been run successfully since the last file modification before allowing commits:
-
-- Tracks file modifications in transcript
-- Verifies test commands ran after modifications
-- Falls back to `.report.json` file when transcript is stale (>5 minutes)
-- Skips verification in remote Claude Code sessions (CLAUDE_CODE_REMOTE=true)
-- Excludes documentation and config files from test requirements
-
-#### Relaxed Test File Verification
-
-When only test files have been modified since the last full test run, the hook allows individual test verification instead of requiring a full test suite re-run. This is useful when:
-
-1. You run the full test suite (`poe test`)
-2. Code review suggests minor formatting fixes in a test file
-3. You can now verify just the modified test file instead of the entire suite
-
-**Requirements:**
-- At least one full passing test run must exist as a baseline
-- Only test files (matching `testFilePatterns`) have been modified since that baseline
-- Each modified test file must have been individually run and passed after its modification
-
-**Configuration:**
-```json
-{
-  "testVerification": {
-    "relaxedTestFileVerification": {
-      "enabled": true,
-      "testFilePatterns": [
-        "^tests?/",
-        "_test\\.py$",
-        "test_[^/]*\\.py$"
-      ],
-      "singleTestCommand": {
-        "local": "pytest {file}",
-        "remote": null
-      }
-    }
-  }
-}
-```
-
-The `singleTestCommand` uses `{file}` as a placeholder for the test file path. If not configured, the hook suggests appropriate commands based on file extension.
 
 ### Pre-Commit Workflow
 
@@ -113,7 +68,6 @@ Runs concrete quality checks against repository state before the session ends:
 - Warns about uncommitted changes
 - Warns about unpushed commits
 - Warns when a branch with unmerged work has no PR
-- Checks test status
 
 **Levels**: each check is configured as `ignore`, `warn`, or `error`.
 
@@ -157,7 +111,7 @@ once its PR lands, without letting a stale PR vouch for new commits pushed to a
 branch that was reused after its previous PR merged.
 
 **Oneshot Mode** (ONESHOT_MODE=true):
-- Strict requirements: git repo, feature branch, clean working dir, all commits pushed, tests pass
+- Strict requirements: git repo, feature branch, clean working dir, all commits pushed, PR created
 - Blocks exit until all requirements met
 - Allow acknowledged failure with `.claude/FAILURE_REASON` file
 - Requires *both* `oneshotMode.enabled` in config and the `ONESHOT_MODE`
@@ -189,7 +143,7 @@ requirement:
   "stopValidation": {
     "oneshotMode": {
       "enabled": true,
-      "strictRequirements": { "prCreated": false, "testsPass": false }
+      "strictRequirements": { "prCreated": false, "cleanWorkingDir": false }
     }
   }
 }
@@ -212,27 +166,6 @@ Example `.claude/guardian.json`:
 
 ```json
 {
-  "testVerification": {
-    "enabled": true,
-    "testCommands": {
-      "local": [
-        {"pattern": "^poe\\s+test", "name": "poe test"},
-        {"pattern": "^pytest\\b", "name": "pytest"}
-      ]
-    },
-    "triggerCommands": ["git commit", "echo done"],
-    "relaxedTestFileVerification": {
-      "enabled": true,
-      "testFilePatterns": [
-        "^tests?/",
-        "_test\\.py$",
-        "test_[^/]*\\.py$"
-      ],
-      "singleTestCommand": {
-        "local": "pytest {file}"
-      }
-    }
-  },
   "preCommitReview": {
     "enabled": true,
     "workflow": {
@@ -242,6 +175,9 @@ Example `.claude/guardian.json`:
   "stopValidation": {
     "enabled": true,
     "validation": {
+      "uncommittedChanges": "warn",
+      "unpushedCommits": "warn",
+      "noPr": "warn",
       "formatAndLint": {
         "enabled": false
       }
@@ -250,13 +186,15 @@ Example `.claude/guardian.json`:
 }
 ```
 
+Levels: `ignore` skips the check, `warn` reports it to you without blocking the stop,
+`error` blocks the stop and sends the issue back to Claude. Only `error` blocks.
+
 ## Disabling Features
 
 Disable in `.claude/guardian.json`:
 
 ```json
 {
-  "testVerification": {"enabled": false},
   "preCommitReview": {"enabled": false},
   "stopValidation": {"enabled": false}
 }
@@ -264,31 +202,17 @@ Disable in `.claude/guardian.json`:
 
 ## Environment Variables
 
-- `CLAUDE_CODE_REMOTE`: Skip test verification and review when true
+- `CLAUDE_CODE_REMOTE`: Skip the pre-commit workflow, and stop validation when `skipInRemote` is set
 - `ONESHOT_MODE`: Enable strict stop validation requirements
 - `VIRTUAL_ENV`: Python virtual environment path (default: `.venv`)
 
-## File Exclusions
-
-Files matching these patterns don't require tests:
-- Documentation: `docs/`, `*.md`, `*.txt`, `README`, `LICENSE`
-- Config: `.claude/`, `.github/`, `.devcontainer/`, `.gitignore`
-- Deployment: `deploy/`, `contrib/`, `scripts/`
-- Temporary: `scratch/`, `tmp/`
-
 ## Troubleshooting
 
-**Tests required for docs changes**: Override `excludeFromTestRequirement` in config
-
 **Pre-commit hooks fail**: Check `.pre-commit-config.yaml` and hook implementations
-
-**Stop hook disabled**: Check line 4 of `stop-validation-hook.sh` - may be disabled due to Claude bug
 
 **Oneshot mode too strict**: Use `.claude/FAILURE_REASON` file to acknowledge inability to complete
 
 ## Notes
 
-- Test verification uses transcript parsing (Claude Code session history)
-- Falls back to `.report.json` when transcript >5 minutes old
 - Pre-commit workflow stashes/restores unstaged changes automatically
-- Stop validation runs quality checks (lint, git state, tests) and is skipped while background or scheduled tasks are still in flight
+- Stop validation runs quality checks (lint, git state) and is skipped while background or scheduled tasks are still in flight
