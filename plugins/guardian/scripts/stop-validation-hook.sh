@@ -234,7 +234,7 @@ if [ "$ONESHOT_MODE_ENABLED" = "true" ] && [ -n "${ONESHOT_MODE:-}" ]; then
     STRICT_REQS=$(echo "$ONESHOT_CONFIG" | jq -r '.strictRequirements // {}')
 
     # 1. Git Repo Check
-    if [ "$(echo "$STRICT_REQS" | jq -r '.gitRepo // true')" = "true" ] && ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    if [ "$(config_bool "$STRICT_REQS" '.gitRepo' true)" = "true" ] && ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
         ISSUES+=("❌ Not inside a git repository - You MUST initialize git and commit all work.")
     else
         # Get current branch once for all subsequent checks
@@ -242,19 +242,19 @@ if [ "$ONESHOT_MODE_ENABLED" = "true" ] && [ -n "${ONESHOT_MODE:-}" ]; then
         commits_ahead=$(git_commits_ahead_of_base)
 
         # 2. Feature Branch Check
-        if [ "$(echo "$STRICT_REQS" | jq -r '.featureBranch // true')" = "true" ]; then
+        if [ "$(config_bool "$STRICT_REQS" '.featureBranch' true)" = "true" ]; then
             if [ -n "$current_branch" ] && is_base_branch "$current_branch"; then
                 ISSUES+=("❌ You're on the $current_branch branch - Create a feature branch.")
             fi
         fi
 
         # 3. Clean Working Dir Check
-        if [ "$(echo "$STRICT_REQS" | jq -r '.cleanWorkingDir // true')" = "true" ] && [ -n "$(git status --porcelain)" ]; then
+        if [ "$(config_bool "$STRICT_REQS" '.cleanWorkingDir' true)" = "true" ] && [ -n "$(git status --porcelain)" ]; then
             ISSUES+=("❌ Uncommitted changes found - You MUST commit all changes.")
         fi
 
         # 4. All Commits Pushed Check
-        if [ "$(echo "$STRICT_REQS" | jq -r '.allCommitsPushed // true')" = "true" ]; then
+        if [ "$(config_bool "$STRICT_REQS" '.allCommitsPushed' true)" = "true" ]; then
             upstream=$(git_upstream)
             if [ -n "$upstream" ]; then
                 if [ -n "$(git log --oneline "$upstream"..HEAD 2>/dev/null || true)" ]; then
@@ -272,15 +272,28 @@ if [ "$ONESHOT_MODE_ENABLED" = "true" ] && [ -n "${ONESHOT_MODE:-}" ]; then
         fi
 
         # 5. PR Created Check
-        if [ "$(echo "$STRICT_REQS" | jq -r '.prCreated // true')" = "true" ]; then
-            if should_check_pr "$current_branch" "$commits_ahead" strict && [ "$(pr_exists_for_branch "$current_branch")" = "no" ]; then
-                ISSUES+=("❌ No PR created for branch '$current_branch' - You MUST create a PR with 'gh pr create'.")
+        # Strict mode requires positive confirmation: only "yes" satisfies the
+        # requirement. An unverifiable lookup is an unmet requirement, not a
+        # pass -- otherwise a missing or unauthenticated gh silently converts a
+        # configured hard requirement into no requirement at all. Advisory mode
+        # deliberately does the opposite and stays quiet on "unknown".
+        if [ "$(config_bool "$STRICT_REQS" '.prCreated' true)" = "true" ]; then
+            if should_check_pr "$current_branch" "$commits_ahead" strict; then
+                case "$(pr_exists_for_branch "$current_branch")" in
+                    yes) ;;
+                    no)
+                        ISSUES+=("❌ No PR created for branch '$current_branch' - You MUST create a PR with 'gh pr create'.")
+                        ;;
+                    *)
+                        ISSUES+=("❌ Could not verify a PR for branch '$current_branch' - 'gh' is missing, unauthenticated, or the lookup failed. Make 'gh' able to confirm the PR, or record why not in the failure file below.")
+                        ;;
+                esac
             fi
         fi
     fi
 
     # 6. Tests Pass Check
-    if [ "$(echo "$STRICT_REQS" | jq -r '.testsPass // true')" = "true" ]; then
+    if [ "$(config_bool "$STRICT_REQS" '.testsPass' true)" = "true" ]; then
         TEST_VERIFICATION_CONFIG=$(echo "$CONFIG" | jq -r '.testVerification // {}')
         if ! check_test_status "$TRANSCRIPT_PATH" "$TEST_VERIFICATION_CONFIG"; then
             ISSUES+=("❌ Tests have not passed - You MUST run tests and fix any failures.")

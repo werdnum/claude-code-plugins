@@ -171,6 +171,7 @@
         "prCreated": true,
         "testsPass": true
       },
+      "comment_strictRequirements": "Each requirement may be set to false to drop it. A missing key uses the default of true.",
       "allowFailureFile": ".claude/FAILURE_REASON",
       "comment_allowFailureFile": "If this file exists, allow failure with reason from file"
     }

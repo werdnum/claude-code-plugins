@@ -161,6 +161,24 @@ branch that was reused after its previous PR merged.
   branch, oneshot mode falls back to "does this branch have any commits at all"
   so a single-branch checkout or a repo with no remote still has its push and
   PR requirements enforced
+- `prCreated` requires positive confirmation: only a successful lookup that
+  finds a PR satisfies it. If `gh` is missing, unauthenticated, or the lookup
+  fails, the requirement is reported as unverified rather than passed. Use the
+  failure file to record a legitimate reason it can't be met
+
+Each entry under `strictRequirements` can be set to `false` to drop that
+requirement:
+
+```json
+{
+  "stopValidation": {
+    "oneshotMode": {
+      "enabled": true,
+      "strictRequirements": { "prCreated": false, "testsPass": false }
+    }
+  }
+}
+```
 
 **Background tasks**: When background tasks or scheduled (cron) tasks are still
 in flight, the hook allows the session to stop instead of running validation.

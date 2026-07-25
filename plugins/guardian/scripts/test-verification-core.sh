@@ -27,6 +27,31 @@ load_guardian_config() {
     echo "$merged_config"
 }
 
+# Reads a boolean config value, falling back to a default when the key is absent.
+#
+# jq's alternative operator yields the right-hand side when the left is `false`
+# *or* null, so the common `.someFlag // true` idiom silently turns a
+# configured `false` back into `true` -- making every such flag impossible to
+# disable. This distinguishes "absent" from "explicitly false".
+#
+# Arguments:
+#   $1: JSON string to read from
+#   $2: jq filter selecting the flag, e.g. '.prCreated' (no `//` default)
+#   $3: default, "true" or "false", used when the key is absent or unreadable
+config_bool() {
+    local json="$1"
+    local filter="$2"
+    local default="$3"
+    local value
+
+    value=$(echo "$json" | jq -r "$filter" 2>/dev/null) || value="null"
+    case "$value" in
+        true) echo "true" ;;
+        false) echo "false" ;;
+        *) echo "$default" ;;
+    esac
+}
+
 # Checks if tests have been run and are passing based on the provided configuration.
 # Arguments:
 #   $1: path to the transcript file
@@ -87,12 +112,12 @@ check_test_status() {
         .excludeFromTestRequirement | join("|") // ""
     ' 2>/dev/null)
 
-    local FALLBACK_ENABLED=$(echo "$CONFIG_JSON" | jq -r '.testReportFallback.enabled // true')
+    local FALLBACK_ENABLED=$(config_bool "$CONFIG_JSON" '.testReportFallback.enabled' true)
     local REPORT_FILE=$(echo "$CONFIG_JSON" | jq -r '.testReportFallback.reportFile // ".report.json"')
     local STALE_THRESHOLD=$(echo "$CONFIG_JSON" | jq -r '.testReportFallback.transcriptStaleThreshold // 300')
 
     # --- Relaxed test file verification config ---
-    local RELAXED_ENABLED=$(echo "$CONFIG_JSON" | jq -r '.relaxedTestFileVerification.enabled // true')
+    local RELAXED_ENABLED=$(config_bool "$CONFIG_JSON" '.relaxedTestFileVerification.enabled' true)
     local TEST_FILE_PATTERNS=$(echo "$CONFIG_JSON" | jq -r '
         .relaxedTestFileVerification.testFilePatterns // ["^tests?/", "_test\\.py$", "test_[^/]*\\.py$", "\\.test\\.(js|ts|jsx|tsx)$", "\\.spec\\.(js|ts|jsx|tsx)$"] | join("|")
     ' 2>/dev/null)
