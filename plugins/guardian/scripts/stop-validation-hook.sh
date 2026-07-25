@@ -127,35 +127,64 @@ git_commits_ahead_of_base() {
     echo "$count"
 }
 
-# Does a pull request already exist for this branch?
+# Does the branch's *current* work already have a pull request?
 # Prints "yes", "no", or "unknown". "unknown" covers every case where we cannot
 # get a trustworthy answer: gh missing, not authenticated, no GitHub remote,
 # network/API failure, unparseable output. Previously all of these collapsed
 # into "0 PRs" via `|| echo "0"`, which turned any lookup *failure* into a
 # confident "you never created a PR" complaint.
+#
+# A closed or merged PR only counts when its head commit is still the branch's
+# head. Branches get reused after their PR lands -- reset onto the new trunk,
+# then developed again -- and a bare "--state all" lookup would find that dead
+# PR and report the new, entirely un-reviewed commits as already covered.
 pr_exists_for_branch() {
     local branch="$1"
-    local output count
+    local output head_sha result
     [ -z "$branch" ] && { echo "unknown"; return; }
     command -v gh >/dev/null 2>&1 || { echo "unknown"; return; }
     gh auth status >/dev/null 2>&1 || { echo "unknown"; return; }
-    # --state all: a merged or deliberately closed PR still means this branch
-    # has had its PR. Only checking open PRs re-nagged after every merge.
-    output=$(gh pr list --head "$branch" --state all --json number --limit 1 2>/dev/null) || { echo "unknown"; return; }
-    count=$(printf '%s' "$output" | jq 'length' 2>/dev/null) || { echo "unknown"; return; }
-    case "$count" in
-        ''|*[!0-9]*) echo "unknown" ;;
-        0) echo "no" ;;
-        *) echo "yes" ;;
+    head_sha=$(git rev-parse HEAD 2>/dev/null || true)
+    output=$(gh pr list --head "$branch" --state all --json state,headRefOid --limit 20 2>/dev/null) || { echo "unknown"; return; }
+    result=$(printf '%s' "$output" | jq -r --arg head "$head_sha" '
+        if type != "array" then "unknown"
+        elif any(.[]; .state == "OPEN") then "yes"
+        elif ($head != "" and any(.[]; .headRefOid == $head)) then "yes"
+        else "no" end
+    ' 2>/dev/null) || { echo "unknown"; return; }
+    case "$result" in
+        yes|no|unknown) echo "$result" ;;
+        *) echo "unknown" ;;
     esac
+}
+
+# Does this branch carry work of its own? Prefers "commits ahead of the base
+# branch", falling back to "has any commits at all" when the base ref cannot be
+# resolved (single-branch checkouts, repos with no remote). The fallback keeps
+# strict mode enforcing on layouts where the base is unknowable.
+branch_has_own_work() {
+    local commits_ahead="$1"
+    if [ "$commits_ahead" = "unknown" ]; then
+        [ -n "$(git log --oneline -1 2>/dev/null || true)" ]
+        return
+    fi
+    [ "$commits_ahead" -gt 0 ]
 }
 
 # Should the "no PR" check run at all for this branch? This gate is the main
 # fix for the check firing on sessions that had nothing to open a PR for.
 # Returns 0 (run the check) only when a PR is genuinely the missing next step.
+#
+# $3 selects how much benefit of the doubt to give:
+#   advisory (default) -- regular mode. Stay quiet on anything uncertain; a
+#                         nagging warning is worse than a missed one.
+#   strict             -- oneshot mode. The user configured `prCreated` as a
+#                         hard requirement, so uncertainty must not be allowed
+#                         to silently satisfy it.
 should_check_pr() {
     local branch="$1"
     local commits_ahead="$2"
+    local mode="${3:-advisory}"
 
     # Detached HEAD, or not on a branch at all.
     [ -z "$branch" ] && return 1
@@ -163,13 +192,21 @@ should_check_pr() {
     # Trunk branches don't get PRs.
     is_base_branch "$branch" && return 1
 
+    # No work of its own means nothing to open a PR for -- this is the case that
+    # fired on read-only and question-answering sessions that merely happened to
+    # be checked out on a feature branch. In strict mode an unresolvable base
+    # falls back to "has any commits" instead of skipping the check.
+    if [ "$mode" = "strict" ]; then
+        branch_has_own_work "$commits_ahead" || return 1
+        # Deliberately no upstream requirement here: `allCommitsPushed` reports
+        # the missing push separately, and a strict checklist should surface
+        # every outstanding requirement rather than hiding one behind another.
+        return 0
+    fi
+
     # We couldn't work out what this branch would merge into, so we can't know
     # whether it holds unmerged work. Stay quiet rather than guess.
     [ "$commits_ahead" = "unknown" ] && return 1
-
-    # The branch carries no commits of its own. There is nothing to open a PR
-    # for -- this is the case that fired on read-only and question-answering
-    # sessions that merely happened to be checked out on a feature branch.
     [ "$commits_ahead" -gt 0 ] || return 1
 
     # The branch has never been pushed. Pushing comes first, and the unpushed
@@ -223,18 +260,20 @@ if [ "$ONESHOT_MODE_ENABLED" = "true" ] && [ -n "${ONESHOT_MODE:-}" ]; then
                 if [ -n "$(git log --oneline "$upstream"..HEAD 2>/dev/null || true)" ]; then
                     ISSUES+=("❌ Unpushed commits found - You MUST push all commits.")
                 fi
-            elif [ -n "$current_branch" ] && [ "$commits_ahead" != "unknown" ] && [ "$commits_ahead" -gt 0 ]; then
+            elif [ -n "$current_branch" ] && branch_has_own_work "$commits_ahead"; then
                 # Only demand a push when we're on a real branch that actually
                 # carries work of its own. A branch sitting level with the base
                 # has nothing to push, and complaining about it just blocks the
-                # stop.
+                # stop. When the base ref can't be resolved, branch_has_own_work
+                # falls back to "has any commits" so an unresolvable base can't
+                # let unpushed work through this strict check.
                 ISSUES+=("❌ No upstream branch set - You MUST push to a remote branch.")
             fi
         fi
 
         # 5. PR Created Check
         if [ "$(echo "$STRICT_REQS" | jq -r '.prCreated // true')" = "true" ]; then
-            if should_check_pr "$current_branch" "$commits_ahead" && [ "$(pr_exists_for_branch "$current_branch")" = "no" ]; then
+            if should_check_pr "$current_branch" "$commits_ahead" strict && [ "$(pr_exists_for_branch "$current_branch")" = "no" ]; then
                 ISSUES+=("❌ No PR created for branch '$current_branch' - You MUST create a PR with 'gh pr create'.")
             fi
         fi
@@ -284,8 +323,12 @@ FORMAT_LINT_CONFIG=$(echo "$STOP_VALIDATION_CONFIG" | jq -r '.validation.formatA
 if [ "$(echo "$FORMAT_LINT_CONFIG" | jq -r '.enabled // false')" = "true" ]; then
     mapfile -t commands < <(echo "$FORMAT_LINT_CONFIG" | jq -r '.commands[]')
     for cmd in "${commands[@]}"; do
-        # Use bash -c instead of eval to reduce risk of code injection
-        if ! bash -c "$cmd"; then
+        # Use bash -c instead of eval to reduce risk of code injection.
+        # Redirect the command's stdout to stderr: this hook may emit a JSON
+        # response on stdout, and formatters/linters routinely print there.
+        # Mixing the two would leave stdout unparseable and silently drop the
+        # systemMessage. stderr keeps the output visible for debugging.
+        if ! bash -c "$cmd" >&2; then
             add_message "error" "❌ Command '$cmd' failed."
             break
         fi

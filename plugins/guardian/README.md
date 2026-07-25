@@ -142,9 +142,12 @@ the answer rather than guessing. Specifically, the "no PR created" check is
 skipped on a detached HEAD, on the trunk/default branch, when the branch has no
 commits ahead of its base branch, when the branch has never been pushed (the
 unpushed-commits check covers that case instead), and when the PR lookup itself
-fails — `gh` missing, unauthenticated, no GitHub remote, or an API error. A
-merged or closed PR counts as a PR having existed, so a branch is not re-nagged
-after its PR lands.
+fails — `gh` missing, unauthenticated, no GitHub remote, or an API error.
+
+A closed or merged PR only counts as "this branch has a PR" while its head
+commit is still the branch's head. That keeps a branch from being re-nagged
+once its PR lands, without letting a stale PR vouch for new commits pushed to a
+branch that was reused after its previous PR merged.
 
 **Oneshot Mode** (ONESHOT_MODE=true):
 - Strict requirements: git repo, feature branch, clean working dir, all commits pushed, tests pass
@@ -153,6 +156,11 @@ after its PR lands.
 - Requires *both* `oneshotMode.enabled` in config and the `ONESHOT_MODE`
   environment variable; with only the config flag set, validation falls through
   to regular mode
+- Unlike regular mode, oneshot mode does **not** let uncertainty satisfy a
+  requirement. Where regular mode stays quiet if it cannot resolve a base
+  branch, oneshot mode falls back to "does this branch have any commits at all"
+  so a single-branch checkout or a repo with no remote still has its push and
+  PR requirements enforced
 
 **Background tasks**: When background tasks or scheduled (cron) tasks are still
 in flight, the hook allows the session to stop instead of running validation.
