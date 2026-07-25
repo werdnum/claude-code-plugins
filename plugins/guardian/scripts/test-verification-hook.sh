@@ -20,7 +20,7 @@ if [ "$ENABLED" != "true" ]; then
 fi
 
 # Skip verification when running in remote Claude Code session if configured
-SKIP_REMOTE=$(echo "$TEST_VERIFICATION_CONFIG" | jq -r '.skipInRemote // true')
+SKIP_REMOTE=$(config_bool "$TEST_VERIFICATION_CONFIG" '.skipInRemote' true)
 ENV_SELECTOR=$(echo "$TEST_VERIFICATION_CONFIG" | jq -r '.environmentSelector // "CLAUDE_CODE_REMOTE"')
 case "$ENV_SELECTOR" in
     CLAUDE_CODE_REMOTE)

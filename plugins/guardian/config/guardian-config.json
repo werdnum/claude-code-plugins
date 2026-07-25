@@ -130,8 +130,11 @@
     "enabled": false,
     "comment_enabled": "Disabled by default - very strict. Enable per-project if desired.",
     "returnCode": 2,
-    "comment_returnCode": "Exit code when validation fails (2 = error)",
+    "comment_returnCode": "Exit code used when an 'error' level check fails (2 = block the stop)",
     "skipInRemote": false,
+    "comment_skipInRemote": "Skip all stop validation in remote Claude Code sessions",
+
+    "comment_levels": "Level semantics: 'ignore' skips the check; 'warn' reports the issue to the user without blocking the stop; 'error' blocks the stop and sends the issue back to Claude. Only 'error' blocks.",
 
     "validation": {
       "formatAndLint": {
@@ -143,7 +146,7 @@
       "uncommittedChanges": "warn",
       "comment_uncommittedChanges": "How to handle uncommitted changes: 'ignore', 'warn', or 'error'",
       "unpushedCommits": "warn",
-      "comment_unpushedCommits": "How to handle unpushed commits: 'ignore', 'warn', or 'error'",
+      "comment_unpushedCommits": "How to handle unpushed commits: 'ignore', 'warn', or 'error'. Only reports when the branch actually carries commits that aren't on its upstream, or has commits ahead of the base branch with no upstream at all.",
 
       "testVerification": {
         "description": "How to handle missing test runs. Leverages the same logic as the pre-commit test verification hook.",
@@ -153,7 +156,7 @@
       },
 
       "noPr": "warn",
-      "comment_noPr": "How to handle no PR created for current branch: 'ignore', 'warn', or 'error'"
+      "comment_noPr": "How to handle no PR created for current branch: 'ignore', 'warn', or 'error'. Only runs when a PR is genuinely the missing next step: on a real branch (not detached HEAD), not the trunk, with commits ahead of the base branch, already pushed to an upstream, and where the PR lookup itself succeeded. A merged or closed PR only counts while its head commit is still the branch head, so a reused branch isn't covered by its previous PR."
     },
 
     "oneshotMode": {
@@ -168,6 +171,7 @@
         "prCreated": true,
         "testsPass": true
       },
+      "comment_strictRequirements": "Each requirement may be set to false to drop it. A missing key uses the default of true.",
       "allowFailureFile": ".claude/FAILURE_REASON",
       "comment_allowFailureFile": "If this file exists, allow failure with reason from file"
     }

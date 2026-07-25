@@ -121,12 +121,88 @@ Runs concrete quality checks against repository state before the session ends:
 - Runs format/lint commands
 - Warns about uncommitted changes
 - Warns about unpushed commits
+- Warns when a branch with unmerged work has no PR
 - Checks test status
+
+**Levels**: each check is configured as `ignore`, `warn`, or `error`.
+
+| Level | Behaviour |
+| ----- | --------- |
+| `ignore` | Check does not run |
+| `warn` | Issue is reported to you as a system message; **the session still stops** |
+| `error` | Stop is blocked and the issue is sent back to Claude to fix |
+
+Only `error` blocks. `uncommittedChanges`, `unpushedCommits` and `noPr` all
+default to `warn`, so out of the box stop validation reports but never blocks.
+Raise a specific check to `error` if you want it enforced.
+
+**When the git checks stay quiet**: these checks only fire when there is
+genuinely something left to do, and stay silent whenever they cannot determine
+the answer rather than guessing. Specifically, the "no PR created" check is
+skipped on a detached HEAD, on the trunk/default branch, when the branch has no
+commits ahead of its base branch, when HEAD has not yet reached its upstream —
+whether never pushed or pushed and since added to (the unpushed-commits check
+covers those instead, so you don't get told to push *and* to open a PR for the
+same missing step) — and when the PR lookup itself fails: `gh` missing,
+unauthenticated, no GitHub remote, or an API error.
+
+"Has this been pushed?" is answered by asking whether HEAD is contained in any
+remote-tracking ref — not by counting commits against the base branch, and not
+by looking for tracking configuration. A base comparison misreads a local-only
+`main` (the base ref *is* HEAD, so zero commits ahead reads as "already
+pushed"), and an `@{u}` check misses `git push origin HEAD:feature`, which
+publishes the branch without setting up tracking. Push advice names an existing
+remote (`origin` when present, otherwise the first configured one) and says so
+plainly when there is no remote at all.
+
+Nothing assumes the remote is called `origin` or the trunk is called
+`main`/`master`. The base branch resolves through each remote's recorded
+default (`refs/remotes/<remote>/HEAD`) first, then conventional names on each
+remote, then local ones — so an `upstream`/`develop` layout is handled.
+
+A closed or merged PR only counts as "this branch has a PR" while its head
+commit is still the branch's head. That keeps a branch from being re-nagged
+once its PR lands, without letting a stale PR vouch for new commits pushed to a
+branch that was reused after its previous PR merged.
 
 **Oneshot Mode** (ONESHOT_MODE=true):
 - Strict requirements: git repo, feature branch, clean working dir, all commits pushed, tests pass
 - Blocks exit until all requirements met
 - Allow acknowledged failure with `.claude/FAILURE_REASON` file
+- Requires *both* `oneshotMode.enabled` in config and the `ONESHOT_MODE`
+  environment variable; with only the config flag set, validation falls through
+  to regular mode
+- Unlike regular mode, oneshot mode does **not** let uncertainty satisfy a
+  requirement. Where regular mode stays quiet if it cannot resolve a base
+  branch, oneshot mode falls back to "does this branch have any commits at all"
+  so a single-branch checkout or a repo with no remote still has its push and
+  PR requirements enforced
+- A detached HEAD is reported as its own failure. There is no branch to name,
+  no upstream to track and nothing for a PR to target, so the branch, push and
+  PR requirements would otherwise all skip and let a detached commit report
+  success. (Regular mode stays quiet on a detached HEAD, as before.)
+- Turning off `gitRepo` does not implicitly satisfy the other requirements.
+  Outside a repository with `featureBranch`, `allCommitsPushed` or `prCreated`
+  still enabled, that is reported as its own failure rather than passing by
+  virtue of being uncheckable
+- `prCreated` requires positive confirmation: only a successful lookup that
+  finds a PR satisfies it. If `gh` is missing, unauthenticated, or the lookup
+  fails, the requirement is reported as unverified rather than passed. Use the
+  failure file to record a legitimate reason it can't be met
+
+Each entry under `strictRequirements` can be set to `false` to drop that
+requirement:
+
+```json
+{
+  "stopValidation": {
+    "oneshotMode": {
+      "enabled": true,
+      "strictRequirements": { "prCreated": false, "testsPass": false }
+    }
+  }
+}
+```
 
 **Background tasks**: When background tasks or scheduled (cron) tasks are still
 in flight, the hook allows the session to stop instead of running validation.
