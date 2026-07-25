@@ -90,23 +90,66 @@ git_is_detached() {
     ! git symbolic-ref --quiet HEAD >/dev/null 2>&1
 }
 
-# Resolve the ref that this branch would be merged into. Prefers the remote's
-# default branch, falling back to conventional names. Empty when nothing
+# Configured remotes, origin first when it exists. Repositories that name their
+# remote something else (upstream, gitlab, a fork's own name) are ordinary, so
+# nothing here may assume "origin".
+git_remotes_preferred_order() {
+    local remotes
+    remotes=$(git remote 2>/dev/null || true)
+    printf '%s\n' "$remotes" | grep -x 'origin' || true
+    printf '%s\n' "$remotes" | grep . | grep -vx 'origin' || true
+}
+
+# Resolve the ref that this branch would be merged into. Empty when nothing
 # resolves, which callers treat as "unknown" rather than "no base".
+#
+# Order of preference:
+#   1. each remote's recorded default branch (refs/remotes/<remote>/HEAD)
+#   2. conventional names on each remote
+#   3. conventional names locally
+# A remote's own recorded default always beats a guess, and guessing on a remote
+# beats a local branch that may be a stale copy. Checking every remote (not just
+# origin) matters for repositories whose default branch is neither main nor
+# master: with only refs/remotes/origin/HEAD consulted, an upstream/develop
+# layout resolved to nothing, or worse to a local main that isn't the trunk.
 git_base_ref() {
-    local candidate
-    candidate=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)
-    if [ -n "$candidate" ] && git rev-parse --verify --quiet "$candidate" >/dev/null 2>&1; then
-        echo "$candidate"
-        return
-    fi
-    for candidate in origin/main origin/master main master; do
+    local remote candidate name
+    for remote in $(git_remotes_preferred_order); do
+        candidate=$(git symbolic-ref --quiet --short "refs/remotes/${remote}/HEAD" 2>/dev/null || true)
+        if [ -n "$candidate" ] && git rev-parse --verify --quiet "$candidate" >/dev/null 2>&1; then
+            echo "$candidate"
+            return
+        fi
+    done
+    for remote in $(git_remotes_preferred_order); do
+        for name in main master; do
+            if git rev-parse --verify --quiet "${remote}/${name}" >/dev/null 2>&1; then
+                echo "${remote}/${name}"
+                return
+            fi
+        done
+    done
+    for candidate in main master; do
         if git rev-parse --verify --quiet "$candidate" >/dev/null 2>&1; then
             echo "$candidate"
             return
         fi
     done
     echo ""
+}
+
+# Strip a leading "<remote>/" from a ref name, leaving the branch name.
+strip_remote_prefix() {
+    local ref="$1" remote
+    for remote in $(git_remotes_preferred_order); do
+        case "$ref" in
+            "$remote"/*)
+                echo "${ref#"$remote"/}"
+                return
+                ;;
+        esac
+    done
+    echo "$ref"
 }
 
 # Is this branch the trunk (or the remote's default branch)? Trunk branches
@@ -119,7 +162,8 @@ is_base_branch() {
         main|master) return 0 ;;
     esac
     base_ref=$(git_base_ref)
-    [ -n "$base_ref" ] && [ "${base_ref#origin/}" = "$branch" ]
+    [ -n "$base_ref" ] || return 1
+    [ "$(strip_remote_prefix "$base_ref")" = "$branch" ]
 }
 
 # Number of commits on HEAD that are not on the base ref. Prints "unknown" when
@@ -245,15 +289,18 @@ should_check_pr() {
     [ "$commits_ahead" = "unknown" ] && return 1
     [ "$commits_ahead" -gt 0 ] || return 1
 
-    # Pushing comes first. It isn't enough that an upstream is *configured* --
-    # HEAD has to have actually reached it. A branch pushed once and then given
-    # more local commits would otherwise get told to open a PR while the
-    # unpushed-commits check separately reports the missing push: two complaints
-    # about one missing step, and with noPr at "error" the PR one blocks.
-    local upstream
-    upstream=$(git_upstream)
-    [ -n "$upstream" ] || return 1
-    [ -z "$(git log --oneline "$upstream"..HEAD 2>/dev/null || true)" ] || return 1
+    # Pushing comes first: a branch whose commits are still local would get told
+    # to open a PR while the unpushed-commits check separately reports the
+    # missing push -- two complaints about one missing step, and with noPr at
+    # "error" the PR one blocks.
+    #
+    # The question is whether HEAD has reached a remote, NOT whether tracking is
+    # configured. `git push origin HEAD:feature` (no -u) publishes the branch and
+    # creates refs/remotes/origin/feature while leaving @{u} unset; gating on
+    # @{u} skipped the PR check entirely for work that was genuinely pushed,
+    # silently bypassing even noPr: "error". Remote containment covers both that
+    # case and the pushed-then-extended one.
+    branch_has_unpushed_work && return 1
 
     return 0
 }
@@ -274,9 +321,31 @@ if [ "$ONESHOT_MODE_ENABLED" = "true" ] && [ -n "${ONESHOT_MODE:-}" ]; then
     ISSUES=()
     STRICT_REQS=$(echo "$ONESHOT_CONFIG" | jq -r '.strictRequirements // {}')
 
+    # Are any requirements that need a branch still enabled? The branch, push and
+    # PR checks all have to skip when there is no branch to inspect, so whenever
+    # one of them is enabled the *reason* a branch can't be inspected has to be
+    # reported -- otherwise those requirements are silently satisfied by the very
+    # condition that makes them uncheckable.
+    BRANCH_REQS_ENABLED=false
+    for req in featureBranch allCommitsPushed prCreated; do
+        if [ "$(config_bool "$STRICT_REQS" ".$req" true)" = "true" ]; then
+            BRANCH_REQS_ENABLED=true
+            break
+        fi
+    done
+
     # 1. Git Repo Check
-    if [ "$(config_bool "$STRICT_REQS" '.gitRepo' true)" = "true" ] && ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-        ISSUES+=("❌ Not inside a git repository - You MUST initialize git and commit all work.")
+    if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        # Outside a repository. `gitRepo` and the branch requirements are
+        # independent settings: turning off `gitRepo` says "this task needn't
+        # live in git", not "the push and PR requirements no longer apply".
+        # Previously the else-branch ran anyway, every git command failed, every
+        # check skipped, and one-shot reported success.
+        if [ "$(config_bool "$STRICT_REQS" '.gitRepo' true)" = "true" ]; then
+            ISSUES+=("❌ Not inside a git repository - You MUST initialize git and commit all work.")
+        elif [ "$BRANCH_REQS_ENABLED" = "true" ]; then
+            ISSUES+=("❌ Not inside a git repository - the branch, push and PR requirements cannot be satisfied here. Initialize git, or disable those requirements too.")
+        fi
     else
         # Get current branch once for all subsequent checks
         current_branch=$(git_current_branch)
@@ -290,14 +359,7 @@ if [ "$ONESHOT_MODE_ENABLED" = "true" ] && [ -n "${ONESHOT_MODE:-}" ]; then
         # every default requirement and reported "All requirements met" despite
         # being neither on a branch, nor pushed, nor covered by a PR. Reported
         # once here rather than three times.
-        DETACHED_MATTERS=false
-        for req in featureBranch allCommitsPushed prCreated; do
-            if [ "$(config_bool "$STRICT_REQS" ".$req" true)" = "true" ]; then
-                DETACHED_MATTERS=true
-                break
-            fi
-        done
-        if [ "$DETACHED_MATTERS" = "true" ] && git_is_detached; then
+        if [ "$BRANCH_REQS_ENABLED" = "true" ] && git_is_detached; then
             ISSUES+=("❌ Detached HEAD - You MUST check out a feature branch so work can be pushed and proposed.")
         fi
 

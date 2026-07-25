@@ -20,7 +20,7 @@
     {
       "name": "guardian",
       "source": "./plugins/guardian",
-      "version": "1.3.5",
+      "version": "1.3.6",
       "description": "Test verification, pre-commit review workflow, and stop validation to ensure code quality"
     },
     {

@@ -147,11 +147,18 @@ same missing step) — and when the PR lookup itself fails: `gh` missing,
 unauthenticated, no GitHub remote, or an API error.
 
 "Has this been pushed?" is answered by asking whether HEAD is contained in any
-remote-tracking ref, not by counting commits against the base branch. On a
-local-only `main` the base ref *is* HEAD, so a base comparison reports zero
-commits ahead and reads as "already pushed" when nothing has ever left the
-machine. Push advice names an existing remote (`origin` when present, otherwise
-the first configured one) and says so plainly when there is no remote at all.
+remote-tracking ref — not by counting commits against the base branch, and not
+by looking for tracking configuration. A base comparison misreads a local-only
+`main` (the base ref *is* HEAD, so zero commits ahead reads as "already
+pushed"), and an `@{u}` check misses `git push origin HEAD:feature`, which
+publishes the branch without setting up tracking. Push advice names an existing
+remote (`origin` when present, otherwise the first configured one) and says so
+plainly when there is no remote at all.
+
+Nothing assumes the remote is called `origin` or the trunk is called
+`main`/`master`. The base branch resolves through each remote's recorded
+default (`refs/remotes/<remote>/HEAD`) first, then conventional names on each
+remote, then local ones — so an `upstream`/`develop` layout is handled.
 
 A closed or merged PR only counts as "this branch has a PR" while its head
 commit is still the branch's head. That keeps a branch from being re-nagged
@@ -174,6 +181,10 @@ branch that was reused after its previous PR merged.
   no upstream to track and nothing for a PR to target, so the branch, push and
   PR requirements would otherwise all skip and let a detached commit report
   success. (Regular mode stays quiet on a detached HEAD, as before.)
+- Turning off `gitRepo` does not implicitly satisfy the other requirements.
+  Outside a repository with `featureBranch`, `allCommitsPushed` or `prCreated`
+  still enabled, that is reported as its own failure rather than passing by
+  virtue of being uncheckable
 - `prCreated` requires positive confirmation: only a successful lookup that
   finds a PR satisfies it. If `gh` is missing, unauthenticated, or the lookup
   fails, the requirement is reported as unverified rather than passed. Use the
