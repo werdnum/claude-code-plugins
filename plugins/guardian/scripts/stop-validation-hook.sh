@@ -81,6 +81,15 @@ git_upstream() {
     git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true
 }
 
+# Is HEAD detached? True only inside a work tree whose HEAD is not a symbolic
+# ref. Deliberately not "git_current_branch is empty": that is also empty for a
+# repository with no commits yet, where HEAD *is* a symbolic ref to an unborn
+# branch and nothing is wrong.
+git_is_detached() {
+    git rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
+    ! git symbolic-ref --quiet HEAD >/dev/null 2>&1
+}
+
 # Resolve the ref that this branch would be merged into. Prefers the remote's
 # default branch, falling back to conventional names. Empty when nothing
 # resolves, which callers treat as "unknown" rather than "no base".
@@ -242,6 +251,24 @@ if [ "$ONESHOT_MODE_ENABLED" = "true" ] && [ -n "${ONESHOT_MODE:-}" ]; then
         commits_ahead=$(git_commits_ahead_of_base)
 
         # 2. Feature Branch Check
+        # A detached HEAD invalidates the branch, push and PR requirements as a
+        # group: there is no branch to name, no upstream to track, and nothing
+        # for a PR to target. Each of those checks individually has to skip when
+        # there is no branch, so without this a clean detached commit satisfied
+        # every default requirement and reported "All requirements met" despite
+        # being neither on a branch, nor pushed, nor covered by a PR. Reported
+        # once here rather than three times.
+        DETACHED_MATTERS=false
+        for req in featureBranch allCommitsPushed prCreated; do
+            if [ "$(config_bool "$STRICT_REQS" ".$req" true)" = "true" ]; then
+                DETACHED_MATTERS=true
+                break
+            fi
+        done
+        if [ "$DETACHED_MATTERS" = "true" ] && git_is_detached; then
+            ISSUES+=("❌ Detached HEAD - You MUST check out a feature branch so work can be pushed and proposed.")
+        fi
+
         if [ "$(config_bool "$STRICT_REQS" '.featureBranch' true)" = "true" ]; then
             if [ -n "$current_branch" ] && is_base_branch "$current_branch"; then
                 ISSUES+=("❌ You're on the $current_branch branch - Create a feature branch.")

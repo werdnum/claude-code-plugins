@@ -161,6 +161,10 @@ branch that was reused after its previous PR merged.
   branch, oneshot mode falls back to "does this branch have any commits at all"
   so a single-branch checkout or a repo with no remote still has its push and
   PR requirements enforced
+- A detached HEAD is reported as its own failure. There is no branch to name,
+  no upstream to track and nothing for a PR to target, so the branch, push and
+  PR requirements would otherwise all skip and let a detached commit report
+  success. (Regular mode stays quiet on a detached HEAD, as before.)
 - `prCreated` requires positive confirmation: only a successful lookup that
   finds a PR satisfies it. If `gh` is missing, unauthenticated, or the lookup
   fails, the requirement is reported as unverified rather than passed. Use the
