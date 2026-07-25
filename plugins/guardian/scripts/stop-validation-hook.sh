@@ -52,8 +52,138 @@ if [ "$ENABLED" != "true" ] && [ "$ONESHOT_MODE_ENABLED" != "true" ]; then
     exit 0
 fi
 
+# Honour the documented `skipInRemote` flag. It was present in the config schema
+# but never read here, so remote sessions ran the full validation regardless.
+SKIP_IN_REMOTE=$(echo "$STOP_VALIDATION_CONFIG" | jq -r '.skipInRemote // false')
+if [ "$SKIP_IN_REMOTE" = "true" ] && [ "${CLAUDE_CODE_REMOTE:-false}" = "true" ]; then
+    echo "Remote session and stopValidation.skipInRemote is set; allowing stop." >&2
+    exit 0
+fi
+
+# --- Git / PR state helpers ---
+# These are shared by both validation modes so the two code paths can't drift
+# apart again. Every helper is written to be *quiet when it cannot be sure*:
+# a check that cannot determine the answer must not manufacture a complaint.
+
+# Current branch name, or empty for detached HEAD / not a git repo. Note that
+# `rev-parse --abbrev-ref HEAD` prints the literal string "HEAD" when detached,
+# which is not a branch and must never be fed to `gh pr list --head`.
+git_current_branch() {
+    local branch
+    branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+    [ "$branch" = "HEAD" ] && branch=""
+    echo "$branch"
+}
+
+# Configured upstream (e.g. origin/feature-x), or empty when the branch has
+# never been pushed.
+git_upstream() {
+    git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true
+}
+
+# Resolve the ref that this branch would be merged into. Prefers the remote's
+# default branch, falling back to conventional names. Empty when nothing
+# resolves, which callers treat as "unknown" rather than "no base".
+git_base_ref() {
+    local candidate
+    candidate=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)
+    if [ -n "$candidate" ] && git rev-parse --verify --quiet "$candidate" >/dev/null 2>&1; then
+        echo "$candidate"
+        return
+    fi
+    for candidate in origin/main origin/master main master; do
+        if git rev-parse --verify --quiet "$candidate" >/dev/null 2>&1; then
+            echo "$candidate"
+            return
+        fi
+    done
+    echo ""
+}
+
+# Is this branch the trunk (or the remote's default branch)? Trunk branches
+# never need a PR of their own.
+is_base_branch() {
+    local branch="$1"
+    local base_ref
+    [ -z "$branch" ] && return 0
+    case "$branch" in
+        main|master) return 0 ;;
+    esac
+    base_ref=$(git_base_ref)
+    [ -n "$base_ref" ] && [ "${base_ref#origin/}" = "$branch" ]
+}
+
+# Number of commits on HEAD that are not on the base ref. Prints "unknown" when
+# the base ref can't be resolved so callers can stay quiet instead of guessing.
+git_commits_ahead_of_base() {
+    local base_ref count
+    base_ref=$(git_base_ref)
+    if [ -z "$base_ref" ]; then
+        echo "unknown"
+        return
+    fi
+    count=$(git rev-list --count "${base_ref}..HEAD" 2>/dev/null || true)
+    [ -z "$count" ] && count="unknown"
+    echo "$count"
+}
+
+# Does a pull request already exist for this branch?
+# Prints "yes", "no", or "unknown". "unknown" covers every case where we cannot
+# get a trustworthy answer: gh missing, not authenticated, no GitHub remote,
+# network/API failure, unparseable output. Previously all of these collapsed
+# into "0 PRs" via `|| echo "0"`, which turned any lookup *failure* into a
+# confident "you never created a PR" complaint.
+pr_exists_for_branch() {
+    local branch="$1"
+    local output count
+    [ -z "$branch" ] && { echo "unknown"; return; }
+    command -v gh >/dev/null 2>&1 || { echo "unknown"; return; }
+    gh auth status >/dev/null 2>&1 || { echo "unknown"; return; }
+    # --state all: a merged or deliberately closed PR still means this branch
+    # has had its PR. Only checking open PRs re-nagged after every merge.
+    output=$(gh pr list --head "$branch" --state all --json number --limit 1 2>/dev/null) || { echo "unknown"; return; }
+    count=$(printf '%s' "$output" | jq 'length' 2>/dev/null) || { echo "unknown"; return; }
+    case "$count" in
+        ''|*[!0-9]*) echo "unknown" ;;
+        0) echo "no" ;;
+        *) echo "yes" ;;
+    esac
+}
+
+# Should the "no PR" check run at all for this branch? This gate is the main
+# fix for the check firing on sessions that had nothing to open a PR for.
+# Returns 0 (run the check) only when a PR is genuinely the missing next step.
+should_check_pr() {
+    local branch="$1"
+    local commits_ahead="$2"
+
+    # Detached HEAD, or not on a branch at all.
+    [ -z "$branch" ] && return 1
+
+    # Trunk branches don't get PRs.
+    is_base_branch "$branch" && return 1
+
+    # We couldn't work out what this branch would merge into, so we can't know
+    # whether it holds unmerged work. Stay quiet rather than guess.
+    [ "$commits_ahead" = "unknown" ] && return 1
+
+    # The branch carries no commits of its own. There is nothing to open a PR
+    # for -- this is the case that fired on read-only and question-answering
+    # sessions that merely happened to be checked out on a feature branch.
+    [ "$commits_ahead" -gt 0 ] || return 1
+
+    # The branch has never been pushed. Pushing comes first, and the unpushed
+    # commits check already covers that; telling Claude to run `gh pr create`
+    # here produces a second complaint about the same one missing step.
+    [ -n "$(git_upstream)" ] || return 1
+
+    return 0
+}
+
 # --- One-Shot Mode Validation ---
-if [ "$ONESHOT_MODE_ENABLED" = "true" ] && [ -n "$ONESHOT_MODE" ]; then
+# ONESHOT_MODE may be unset; `set -u` made the bare `$ONESHOT_MODE` reference
+# abort the hook outright whenever oneshotMode was enabled in config.
+if [ "$ONESHOT_MODE_ENABLED" = "true" ] && [ -n "${ONESHOT_MODE:-}" ]; then
     echo "🎯 ONE SHOT MODE - Checking completion status..." >&2
     
     FAILURE_FILE=$(echo "$ONESHOT_CONFIG" | jq -r '.allowFailureFile // ".claude/FAILURE_REASON"')
@@ -71,11 +201,12 @@ if [ "$ONESHOT_MODE_ENABLED" = "true" ] && [ -n "$ONESHOT_MODE" ]; then
         ISSUES+=("❌ Not inside a git repository - You MUST initialize git and commit all work.")
     else
         # Get current branch once for all subsequent checks
-        current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+        current_branch=$(git_current_branch)
+        commits_ahead=$(git_commits_ahead_of_base)
 
         # 2. Feature Branch Check
         if [ "$(echo "$STRICT_REQS" | jq -r '.featureBranch // true')" = "true" ]; then
-            if [ "$current_branch" = "main" ] || [ "$current_branch" = "master" ]; then
+            if [ -n "$current_branch" ] && is_base_branch "$current_branch"; then
                 ISSUES+=("❌ You're on the $current_branch branch - Create a feature branch.")
             fi
         fi
@@ -87,23 +218,24 @@ if [ "$ONESHOT_MODE_ENABLED" = "true" ] && [ -n "$ONESHOT_MODE" ]; then
 
         # 4. All Commits Pushed Check
         if [ "$(echo "$STRICT_REQS" | jq -r '.allCommitsPushed // true')" = "true" ]; then
-            upstream=$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || true)
+            upstream=$(git_upstream)
             if [ -n "$upstream" ]; then
-                if [ -n "$(git log --oneline "$upstream"..HEAD)" ]; then
+                if [ -n "$(git log --oneline "$upstream"..HEAD 2>/dev/null || true)" ]; then
                     ISSUES+=("❌ Unpushed commits found - You MUST push all commits.")
                 fi
-            elif [ -n "$(git log --oneline | head -1)" ]; then
+            elif [ -n "$current_branch" ] && [ "$commits_ahead" != "unknown" ] && [ "$commits_ahead" -gt 0 ]; then
+                # Only demand a push when we're on a real branch that actually
+                # carries work of its own. A branch sitting level with the base
+                # has nothing to push, and complaining about it just blocks the
+                # stop.
                 ISSUES+=("❌ No upstream branch set - You MUST push to a remote branch.")
             fi
         fi
 
         # 5. PR Created Check
         if [ "$(echo "$STRICT_REQS" | jq -r '.prCreated // true')" = "true" ]; then
-            if [ -n "$current_branch" ] && command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; then
-                pr_count=$(gh pr list --head "$current_branch" --state open --json number --limit 1 2>/dev/null | jq 'length' 2>/dev/null || echo "0")
-                if [ "$pr_count" = "0" ]; then
-                    ISSUES+=("❌ No PR created for branch '$current_branch' - You MUST create a PR with 'gh pr create'.")
-                fi
+            if should_check_pr "$current_branch" "$commits_ahead" && [ "$(pr_exists_for_branch "$current_branch")" = "no" ]; then
+                ISSUES+=("❌ No PR created for branch '$current_branch' - You MUST create a PR with 'gh pr create'.")
             fi
         fi
     fi
@@ -132,14 +264,19 @@ if [ "$ENABLED" != "true" ]; then
     exit 0
 fi
 
-VALIDATION_MESSAGES=()
-BLOCKING_ERROR_FOUND=false
+BLOCKING_MESSAGES=()
+WARNING_MESSAGES=()
 
+# Anything not explicitly configured as "error" is advisory. Only "error"
+# blocks the stop; see the exit handling at the bottom of this file.
 add_message() {
     local type="$1"
     local message="$2"
-    VALIDATION_MESSAGES+=("$message")
-    if [ "$type" = "error" ]; then BLOCKING_ERROR_FOUND=true; fi
+    if [ "$type" = "error" ]; then
+        BLOCKING_MESSAGES+=("$message")
+    else
+        WARNING_MESSAGES+=("$message")
+    fi
 }
 
 # 1. Format and Lint
@@ -166,25 +303,27 @@ fi
 # 3. Unpushed Commits
 UNPUSHED_LEVEL=$(echo "$STOP_VALIDATION_CONFIG" | jq -r '.validation.unpushedCommits // "warn"')
 if [ "$UNPUSHED_LEVEL" != "ignore" ]; then
-    upstream=$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || true)
+    upstream=$(git_upstream)
+    unpushed_ahead=$(git_commits_ahead_of_base)
     if [ -n "$upstream" ]; then
         if unpushed_commits=$(git log --oneline "$upstream"..HEAD 2>/dev/null); [ -n "$unpushed_commits" ]; then
             add_message "$UNPUSHED_LEVEL" "Unpushed commits detected."
         fi
+    elif [ -n "$(git_current_branch)" ] && [ "$unpushed_ahead" != "unknown" ] && [ "$unpushed_ahead" -gt 0 ]; then
+        # Branch carries commits but has no upstream at all. The PR check defers
+        # to this message rather than telling Claude to open a PR for a branch
+        # that was never pushed.
+        add_message "$UNPUSHED_LEVEL" "Branch has commits but no upstream set; push with 'git push -u origin HEAD'."
     fi
 fi
 
 # 4. PR Created Check
 NO_PR_LEVEL=$(echo "$STOP_VALIDATION_CONFIG" | jq -r '.validation.noPr // "warn"')
 if [ "$NO_PR_LEVEL" != "ignore" ]; then
-    current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)
-    if [ -n "$current_branch" ] && [ "$current_branch" != "main" ] && [ "$current_branch" != "master" ]; then
-        if command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; then
-            pr_count=$(gh pr list --head "$current_branch" --state open --json number --limit 1 2>/dev/null | jq 'length' 2>/dev/null || echo "0")
-            if [ "$pr_count" = "0" ]; then
-                add_message "$NO_PR_LEVEL" "No PR created for branch '$current_branch'. Consider running 'gh pr create'."
-            fi
-        fi
+    current_branch=$(git_current_branch)
+    commits_ahead=$(git_commits_ahead_of_base)
+    if should_check_pr "$current_branch" "$commits_ahead" && [ "$(pr_exists_for_branch "$current_branch")" = "no" ]; then
+        add_message "$NO_PR_LEVEL" "No PR created for branch '$current_branch'. Consider running 'gh pr create'."
     fi
 fi
 
@@ -199,17 +338,26 @@ if [ "$(echo "$TEST_VERIFICATION_CONFIG" | jq -r '.enabled // false')" = "true" 
 fi
 
 # --- Output and Exit ---
-if [ ${#VALIDATION_MESSAGES[@]} -gt 0 ]; then
+# Blocking issues (level "error") stop the session and are reported on stderr,
+# which Claude Code feeds back to Claude.
+if [ ${#BLOCKING_MESSAGES[@]} -gt 0 ]; then
     echo "✋ Before stopping, please review the following:" >&2
-    for msg in "${VALIDATION_MESSAGES[@]}"; do echo "   - $msg" >&2; done
+    for msg in "${BLOCKING_MESSAGES[@]}"; do printf '   - %b\n' "$msg" >&2; done
+    for msg in "${WARNING_MESSAGES[@]}"; do printf '   - (warning) %b\n' "$msg" >&2; done
+    echo "🚫 Blocking issues must be resolved before stopping." >&2
+    exit "$(echo "$STOP_VALIDATION_CONFIG" | jq -r '.returnCode // 2')"
+fi
 
-    if [ "$BLOCKING_ERROR_FOUND" = "true" ]; then
-        echo "🚫 Blocking issues must be resolved before stopping." >&2
-        exit "$(echo "$STOP_VALIDATION_CONFIG" | jq -r '.returnCode // 2')"
-    else
-        echo "You may proceed, but please consider addressing warnings." >&2
-        exit 2
-    fi
+# Warnings are advisory and must NOT block. Exiting 2 here made "warn" and
+# "error" behave identically: every warn-level check -- and uncommittedChanges,
+# unpushedCommits and noPr all default to "warn" -- forced Claude back into the
+# loop for one more round on essentially every stop. Surface them as a
+# systemMessage instead, which shows the text to the user without blocking.
+if [ ${#WARNING_MESSAGES[@]} -gt 0 ]; then
+    warning_text=$(printf '   - %b\n' "${WARNING_MESSAGES[@]}")
+    jq -n --arg msg "✋ Guardian stop validation warnings:"$'\n'"$warning_text" \
+        '{continue: true, suppressOutput: true, systemMessage: $msg}'
+    exit 0
 fi
 
 exit 0

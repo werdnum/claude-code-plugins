@@ -121,12 +121,38 @@ Runs concrete quality checks against repository state before the session ends:
 - Runs format/lint commands
 - Warns about uncommitted changes
 - Warns about unpushed commits
+- Warns when a branch with unmerged work has no PR
 - Checks test status
+
+**Levels**: each check is configured as `ignore`, `warn`, or `error`.
+
+| Level | Behaviour |
+| ----- | --------- |
+| `ignore` | Check does not run |
+| `warn` | Issue is reported to you as a system message; **the session still stops** |
+| `error` | Stop is blocked and the issue is sent back to Claude to fix |
+
+Only `error` blocks. `uncommittedChanges`, `unpushedCommits` and `noPr` all
+default to `warn`, so out of the box stop validation reports but never blocks.
+Raise a specific check to `error` if you want it enforced.
+
+**When the git checks stay quiet**: these checks only fire when there is
+genuinely something left to do, and stay silent whenever they cannot determine
+the answer rather than guessing. Specifically, the "no PR created" check is
+skipped on a detached HEAD, on the trunk/default branch, when the branch has no
+commits ahead of its base branch, when the branch has never been pushed (the
+unpushed-commits check covers that case instead), and when the PR lookup itself
+fails — `gh` missing, unauthenticated, no GitHub remote, or an API error. A
+merged or closed PR counts as a PR having existed, so a branch is not re-nagged
+after its PR lands.
 
 **Oneshot Mode** (ONESHOT_MODE=true):
 - Strict requirements: git repo, feature branch, clean working dir, all commits pushed, tests pass
 - Blocks exit until all requirements met
 - Allow acknowledged failure with `.claude/FAILURE_REASON` file
+- Requires *both* `oneshotMode.enabled` in config and the `ONESHOT_MODE`
+  environment variable; with only the config flag set, validation falls through
+  to regular mode
 
 **Background tasks**: When background tasks or scheduled (cron) tasks are still
 in flight, the hook allows the session to stop instead of running validation.
