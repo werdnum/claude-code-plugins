@@ -167,6 +167,33 @@ pr_exists_for_branch() {
     esac
 }
 
+# Does HEAD carry commits that have not reached any remote?
+#
+# Asks that question directly -- is HEAD contained in any remote-tracking ref --
+# instead of going through the base branch. `git_base_ref` deliberately falls
+# back to a *local* main/master, and on a local-only trunk that means comparing
+# HEAD against itself: zero commits ahead, which reads as "already pushed" when
+# in fact nothing has ever been pushed.
+branch_has_unpushed_work() {
+    local containing
+    git rev-parse --verify --quiet HEAD >/dev/null 2>&1 || return 1
+    containing=$(git for-each-ref --contains HEAD --format='%(refname)' refs/remotes 2>/dev/null | head -n 1)
+    [ -z "$containing" ]
+}
+
+# Remote to name in "go and push" advice: origin when it exists, otherwise the
+# first configured remote. Empty when the repository has no remotes at all, in
+# which case there is no push command to suggest.
+git_preferred_remote() {
+    local remotes
+    remotes=$(git remote 2>/dev/null || true)
+    if printf '%s\n' "$remotes" | grep -qx 'origin'; then
+        echo "origin"
+        return
+    fi
+    printf '%s\n' "$remotes" | grep . | head -n 1 || true
+}
+
 # Does this branch carry work of its own? Prefers "commits ahead of the base
 # branch", falling back to "has any commits at all" when the base ref cannot be
 # resolved (single-branch checkouts, repos with no remote). The fallback keeps
@@ -218,10 +245,15 @@ should_check_pr() {
     [ "$commits_ahead" = "unknown" ] && return 1
     [ "$commits_ahead" -gt 0 ] || return 1
 
-    # The branch has never been pushed. Pushing comes first, and the unpushed
-    # commits check already covers that; telling Claude to run `gh pr create`
-    # here produces a second complaint about the same one missing step.
-    [ -n "$(git_upstream)" ] || return 1
+    # Pushing comes first. It isn't enough that an upstream is *configured* --
+    # HEAD has to have actually reached it. A branch pushed once and then given
+    # more local commits would otherwise get told to open a PR while the
+    # unpushed-commits check separately reports the missing push: two complaints
+    # about one missing step, and with noPr at "error" the PR one blocks.
+    local upstream
+    upstream=$(git_upstream)
+    [ -n "$upstream" ] || return 1
+    [ -z "$(git log --oneline "$upstream"..HEAD 2>/dev/null || true)" ] || return 1
 
     return 0
 }
@@ -287,13 +319,14 @@ if [ "$ONESHOT_MODE_ENABLED" = "true" ] && [ -n "${ONESHOT_MODE:-}" ]; then
                 if [ -n "$(git log --oneline "$upstream"..HEAD 2>/dev/null || true)" ]; then
                     ISSUES+=("❌ Unpushed commits found - You MUST push all commits.")
                 fi
-            elif [ -n "$current_branch" ] && branch_has_own_work "$commits_ahead"; then
-                # Only demand a push when we're on a real branch that actually
-                # carries work of its own. A branch sitting level with the base
-                # has nothing to push, and complaining about it just blocks the
-                # stop. When the base ref can't be resolved, branch_has_own_work
-                # falls back to "has any commits" so an unresolvable base can't
-                # let unpushed work through this strict check.
+            elif [ -n "$current_branch" ] && branch_has_unpushed_work; then
+                # Only demand a push when we're on a real branch carrying commits
+                # that no remote has. A branch whose HEAD is already contained in
+                # a remote-tracking ref has nothing to push, and complaining
+                # about it just blocks the stop. Asking about remote containment
+                # rather than "commits ahead of base" also covers a local-only
+                # main/master, where the base ref *is* HEAD and a base comparison
+                # would report zero commits ahead despite nothing being pushed.
                 ISSUES+=("❌ No upstream branch set - You MUST push to a remote branch.")
             fi
         fi
@@ -387,16 +420,20 @@ fi
 UNPUSHED_LEVEL=$(echo "$STOP_VALIDATION_CONFIG" | jq -r '.validation.unpushedCommits // "warn"')
 if [ "$UNPUSHED_LEVEL" != "ignore" ]; then
     upstream=$(git_upstream)
-    unpushed_ahead=$(git_commits_ahead_of_base)
     if [ -n "$upstream" ]; then
         if unpushed_commits=$(git log --oneline "$upstream"..HEAD 2>/dev/null); [ -n "$unpushed_commits" ]; then
             add_message "$UNPUSHED_LEVEL" "Unpushed commits detected."
         fi
-    elif [ -n "$(git_current_branch)" ] && [ "$unpushed_ahead" != "unknown" ] && [ "$unpushed_ahead" -gt 0 ]; then
-        # Branch carries commits but has no upstream at all. The PR check defers
-        # to this message rather than telling Claude to open a PR for a branch
-        # that was never pushed.
-        add_message "$UNPUSHED_LEVEL" "Branch has commits but no upstream set; push with 'git push -u origin HEAD'."
+    elif [ -n "$(git_current_branch)" ] && branch_has_unpushed_work; then
+        # Branch carries commits that are on no remote and has no upstream set.
+        # The PR check defers to this message rather than telling Claude to open
+        # a PR for a branch that was never pushed.
+        unpushed_remote=$(git_preferred_remote)
+        if [ -n "$unpushed_remote" ]; then
+            add_message "$UNPUSHED_LEVEL" "Branch has commits that aren't on any remote; push with 'git push -u $unpushed_remote HEAD'."
+        else
+            add_message "$UNPUSHED_LEVEL" "Branch has commits that aren't on any remote, and no remote is configured; add one before pushing."
+        fi
     fi
 fi
 

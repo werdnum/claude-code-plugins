@@ -140,9 +140,18 @@ Raise a specific check to `error` if you want it enforced.
 genuinely something left to do, and stay silent whenever they cannot determine
 the answer rather than guessing. Specifically, the "no PR created" check is
 skipped on a detached HEAD, on the trunk/default branch, when the branch has no
-commits ahead of its base branch, when the branch has never been pushed (the
-unpushed-commits check covers that case instead), and when the PR lookup itself
-fails — `gh` missing, unauthenticated, no GitHub remote, or an API error.
+commits ahead of its base branch, when HEAD has not yet reached its upstream —
+whether never pushed or pushed and since added to (the unpushed-commits check
+covers those instead, so you don't get told to push *and* to open a PR for the
+same missing step) — and when the PR lookup itself fails: `gh` missing,
+unauthenticated, no GitHub remote, or an API error.
+
+"Has this been pushed?" is answered by asking whether HEAD is contained in any
+remote-tracking ref, not by counting commits against the base branch. On a
+local-only `main` the base ref *is* HEAD, so a base comparison reports zero
+commits ahead and reads as "already pushed" when nothing has ever left the
+machine. Push advice names an existing remote (`origin` when present, otherwise
+the first configured one) and says so plainly when there is no remote at all.
 
 A closed or merged PR only counts as "this branch has a PR" while its head
 commit is still the branch's head. That keeps a branch from being re-nagged
