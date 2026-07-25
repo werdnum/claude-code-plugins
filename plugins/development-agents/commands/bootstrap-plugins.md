@@ -11,7 +11,7 @@ This command configures all werdnum-plugins for your project through intelligent
 Configure the following plugins for this project:
 - **bash-guard**: Safety checks, timeouts, branch protection
 - **format-and-lint**: Auto-formatting and linting
-- **guardian**: Test verification, pre-commit workflow, stop validation
+- **guardian**: Pre-commit workflow and stop validation (commit/push/PR completion checks)
 - **development-agents**: Already configured (provides this command)
 
 ### Step 1: Auto-Detect Project Characteristics
@@ -55,15 +55,7 @@ Use the AskUserQuestion tool to ask about:
 1. **Main Branch Protection**: "Should commits to the main branch be blocked?"
    - Options: "Enable protection", "Disable protection"
 
-2. **Test Verification**: "How strict should test verification be?"
-   - Options:
-     - "Strict - Always require tests before commits"
-     - "Relaxed - Allow some files without tests"
-
-3. **Pre-Commit Code Review**: "Enable LLM code review before commits?" (only if pre-commit framework detected)
-   - Options: "Enable code review", "Disable code review"
-
-4. **Stop Validation**: "How thorough should completion checks be?"
+2. **Stop Validation**: "How thorough should completion checks be?"
    - Options:
      - "Strict - Verify formatting, tests, and commits"
      - "Moderate - Check uncommitted changes and tests"
@@ -171,26 +163,10 @@ Configure based on detected languages:
 
 #### `.claude/guardian.json`
 
-Configure based on detected test commands, pre-commit framework, and user preferences:
+Configure based on the detected pre-commit framework and user preferences:
 
 ```json
 {
-  "testVerification": {
-    "enabled": true,
-    "testCommands": {
-      "local": [<detected test command patterns, e.g., "pytest", "poe test">],
-      "remote": [<same as local>]
-    },
-    "excludeFromTestRequirement": [
-      "**/*.md",
-      "**/*.txt",
-      "**/.claude/**",
-      "**/.*",
-      "**/*.json",
-      "**/*.yaml",
-      "**/*.yml"
-    ]
-  },
   "preCommitReview": {
     "enabled": <true if pre-commit framework detected>,
     "workflow": {
@@ -198,9 +174,6 @@ Configure based on detected test commands, pre-commit framework, and user prefer
         "enabled": <true if pre-commit framework detected>,
         "framework": "<detected framework: 'pre-commit', 'husky', 'lefthook', 'manual', or null>",
         "maxIterations": 3
-      },
-      "runCodeReview": {
-        "enabled": <user choice for code review>
       }
     }
   },
@@ -212,12 +185,14 @@ Configure based on detected test commands, pre-commit framework, and user prefer
       },
       "uncommittedChanges": "<based on user choice: 'error' if strict, 'warn' if moderate, 'ignore' if relaxed>",
       "unpushedCommits": "warn",
-      "testStatus": "<based on user choice: 'error' if strict, 'warn' if moderate/relaxed>",
-      "checkRequestFulfilled": true
+      "noPr": "<based on user choice: 'error' if strict, 'warn' if moderate/relaxed>"
     }
   }
 }
 ```
+
+Levels: `ignore` skips the check, `warn` reports it without blocking the stop, `error`
+blocks the stop. Only `error` blocks.
 
 **Merge strategy**: Preserve existing workflow settings, only update enabled flags and detected values.
 
@@ -249,7 +224,7 @@ After creating/updating files, show the user:
 
 - Use Read and Grep tools for detection, NOT Bash (except for git commands)
 - Always merge intelligently - don't overwrite user customizations
-- Ask only the 4 critical questions - auto-detect everything else
+- Ask only the 2 critical questions - auto-detect everything else
 - Provide clear, actionable feedback about what was configured
 - If a config file already exists and is well-configured, just note that and preserve it
 

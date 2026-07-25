@@ -1,7 +1,7 @@
 {
   "name": "guardian",
-  "version": "1.3.6",
-  "description": "Test verification, pre-commit review workflow, and stop validation to ensure code quality",
+  "version": "2.0.0",
+  "description": "Pre-commit workflow and stop validation - checks that a session's work is committed, pushed, and proposed",
   "author": {
     "name": "Andrew Garrett",
     "email": "andrewgarrett@google.com"

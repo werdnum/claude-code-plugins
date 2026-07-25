@@ -1,7 +1,16 @@
 #!/usr/bin/env python3
 """
-Pre-commit hook for code review using the review-changes.sh script.
-Handles formatting/linting, running the review, and processing the results.
+Pre-commit workflow hook.
+
+Runs deterministic gates before a commit or PR creation: executes any `git add`
+commands from the command line, isolates the staged changes, runs formatters and
+linters, and runs the pre-commit framework hooks.
+
+This hook does NOT run an LLM code review. The automatic review used to shell out to
+`review-changes.py` (defaulting to Gemini) on every commit; when no API key was
+configured it failed open with an empty issue list, so commits were reported as
+"reviewed" without anything having been reviewed. `review-changes.py` is still
+available to run by hand -- see scripts/review-changes.py in the marketplace repo.
 """
 
 import json
@@ -14,7 +23,7 @@ from typing import Any
 
 
 class ReviewHook:
-    """Handles the review hook workflow."""
+    """Handles the pre-commit workflow."""
 
     def __init__(self) -> None:
         self.repo_root = self._get_repo_root()
@@ -93,7 +102,6 @@ class ReviewHook:
                     "stashUnstaged": True,
                     "runFormatLint": {"enabled": False},
                     "runPreCommitHooks": {"enabled": True, "maxIterations": 5},
-                    "runCodeReview": {"enabled": False}
                 }
             }
         }
@@ -336,113 +344,6 @@ class ReviewHook:
 
         return True, ""
 
-    # ast-grep-ignore: no-dict-any - Review data returned by script is genuinely arbitrary
-    def _run_review(self, command: str) -> tuple[int, dict[str, Any], str]:
-        """Run the review script and get JSON output.
-
-        Args:
-            command: The git command being executed (for context)
-
-        Returns:
-            Tuple of (exit_code, review_data, cache_key)
-        """
-        # Check if code review is enabled in config
-        review_config = self.config.get("preCommitReview", {}).get("workflow", {}).get("runCodeReview", {})
-        if not review_config.get("enabled", False):
-            return 0, {}, ""  # Skip if disabled
-
-        # Use plugin's bundled review script
-        plugin_root = Path(os.environ.get("CLAUDE_PLUGIN_ROOT", Path(__file__).parent.parent))
-        review_script = plugin_root / "scripts" / "review-changes.py"
-
-        if not review_script.exists():
-            print("Review script not found in plugin, skipping code review", file=sys.stderr)
-            return 0, {}, ""
-
-        print("\nAnalyzing staged changes for issues...", file=sys.stderr)
-        cmd = ["uv", "run", str(review_script), "--json"]
-        if command:
-            cmd.extend(["--command", command])
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-
-        # The human-readable output goes to stderr, JSON to stdout
-        print(result.stderr, file=sys.stderr)
-
-        try:
-            review_data = json.loads(result.stdout) if result.stdout else {}
-        except json.JSONDecodeError:
-            review_data = {}
-
-        # Extract cache_key from review data
-        cache_key = review_data.get("cache_key", "")
-
-        return result.returncode, review_data, cache_key
-
-    # ast-grep-ignore: no-dict-any - Issues contain arbitrary JSON data from review script
-    def _format_issues(self, issues: list[dict[str, Any]]) -> str:
-        """Format issues from JSON for display."""
-        if not issues:
-            return "No specific issues available"
-
-        formatted = []
-        for issue in issues[:20]:  # Limit to 20 issues
-            severity = issue.get("severity", "UNKNOWN")
-            file = issue.get("file", "unknown")
-            line = issue.get("line", "")
-            desc = issue.get("description", "")
-
-            if line:
-                formatted.append(f"[{severity}] {file}:{line}: {desc}")
-            else:
-                formatted.append(f"[{severity}] {file}: {desc}")
-
-        return "\n".join(formatted)
-
-    def _check_for_sentinel(
-        self, command: str, cache_key: str
-    ) -> tuple[bool, bool, str, str]:
-        """Check for review acknowledgment or bypass in the command.
-
-        Args:
-            command: The git command being executed
-            cache_key: The review cache key for this diff
-
-        Returns: (has_reviewed, has_bypass, bypass_reason, cache_key_prefix)
-        """
-        # Use first 12 characters of cache key for readability
-        cache_key_prefix = cache_key[:12] if cache_key else "no-cache"
-        sentinel = f"Reviewed: cache-{cache_key_prefix}"
-
-        has_reviewed = sentinel in command
-
-        # Check for bypass
-        bypass_match = re.search(r"Bypass-Review:\s*([^\"'\n]+)", command)
-        has_bypass = False
-        bypass_reason = ""
-
-        if bypass_match:
-            bypass_reason = bypass_match.group(1).strip()
-            if bypass_reason and bypass_reason not in {"<reason>", "reason"}:
-                has_bypass = True
-
-        return has_reviewed, has_bypass, bypass_reason, cache_key_prefix
-
-    def _output_json_response(self, permission: str, reason: str) -> None:
-        """Output the JSON response for the hook."""
-        response = {
-            "hookSpecificOutput": {
-                "hookEventName": "PreToolUse",
-                "permissionDecision": permission,
-                "permissionDecisionReason": reason,
-            }
-        }
-        print(json.dumps(response))
-
     def run(self) -> None:
         """Main workflow execution."""
         # Check if pre-commit review is enabled
@@ -464,9 +365,7 @@ class ReviewHook:
             if not self._is_commit_or_pr(command):
                 sys.exit(0)
 
-            print(
-                "🔍 Running improved pre-commit review workflow...\n", file=sys.stderr
-            )
+            print("🔍 Running pre-commit workflow...\n", file=sys.stderr)
 
             # Step 1: Execute git add commands
             if not self._execute_git_adds(command):
@@ -492,88 +391,8 @@ class ReviewHook:
                 )
                 sys.exit(2)
 
-            # Step 5: Run code review
-            exit_code, review_data, cache_key = self._run_review(command)
-
-            # Check for sentinel phrases
-            has_reviewed, has_bypass, bypass_reason, cache_key_prefix = (
-                self._check_for_sentinel(command, cache_key)
-            )
-
-            # Process based on exit code and sentinels
-            if exit_code == 0:
-                if has_bypass or has_reviewed:
-                    # Review passed - no need for bypass/reviewed sentinels
-                    print(
-                        "Code review passed with no issues. "
-                        "Remove the bypass/acknowledgment sentinel from your commit message - "
-                        "it is not needed when there are no issues to bypass.",
-                        file=sys.stderr,
-                    )
-                    sys.exit(2)
-                sys.exit(0)
-            elif exit_code == 1:
-                # Minor issues
-                if has_reviewed:
-                    sys.exit(0)
-                elif has_bypass:
-                    self._output_json_response(
-                        "ask",
-                        f"Minor issues found. Bypass requested: {bypass_reason}\n\nDo you want to proceed?",
-                    )
-                else:
-                    issues = review_data.get("issues", [])
-                    formatted_issues = self._format_issues(issues)
-                    print(
-                        f"Code review found minor issues:\n\n{formatted_issues}\n\n"
-                        f"Fix these issues, then commit again normally (without any sentinel phrase).\n"
-                        f"The review will re-run automatically on the updated code.\n\n"
-                        f"Only if you have a specific reason NOT to fix them, you may acknowledge by adding:\n"
-                        f"• Reviewed: cache-{cache_key_prefix}\n\n"
-                        f"Do NOT use Bypass-Review or Reviewed if you have already fixed the issues.",
-                        file=sys.stderr,
-                    )
-                    sys.exit(2)
-            elif has_bypass:
-                # Major issues (exit code 2) with bypass request - escalate to user
-                self._output_json_response(
-                    "ask",
-                    f"BLOCKING issues found. Escalation requested: {bypass_reason}\n\n"
-                    "These are serious issues (potential build breaks, runtime errors, security risks, or logic errors) "
-                    "that should typically be fixed.\n\n"
-                    "You may proceed if the review is incorrect or contradicts the user's explicit instructions. "
-                    "Do you want to proceed?",
-                )
-            elif has_reviewed:
-                # Blocking issues with has_reviewed - can't bypass with Reviewed
-                issues = review_data.get("issues", [])
-                formatted_issues = self._format_issues(issues)
-                print(
-                    f"BLOCKING issues found that cannot be bypassed with 'Reviewed' acknowledgment:\n\n"
-                    f"{formatted_issues}\n\n"
-                    "Fix these issues, then commit again normally (without any sentinel phrase).\n"
-                    "The review will re-run automatically on the updated code.\n"
-                    "'Reviewed' acknowledgment is only for minor issues.\n\n"
-                    "Only if you believe the review is incorrect or contradicts the user's explicit instructions, "
-                    "escalate for manual decision: Bypass-Review: <why the review is incorrect>\n"
-                    "Do NOT use Bypass-Review if you have already fixed the issues.",
-                    file=sys.stderr,
-                )
-                sys.exit(2)
-            else:
-                # Blocking issues without bypass - exit with error message
-                issues = review_data.get("issues", [])
-                formatted_issues = self._format_issues(issues)
-                print(
-                    f"Code review found BLOCKING issues:\n\n{formatted_issues}\n\n"
-                    "Fix these issues, then commit again normally (without any sentinel phrase).\n"
-                    "The review will re-run automatically on the updated code.\n\n"
-                    "Only if you believe the review is incorrect or contradicts the user's explicit instructions, "
-                    "you may escalate for manual decision: Bypass-Review: <why the review is incorrect>\n"
-                    "Do NOT use Bypass-Review if you have already fixed the issues.",
-                    file=sys.stderr,
-                )
-                sys.exit(2)
+            # All gates passed - allow the commit.
+            sys.exit(0)
 
         finally:
             # Always restore stash on exit

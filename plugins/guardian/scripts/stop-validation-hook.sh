@@ -6,8 +6,8 @@
 
 set -euo pipefail
 
-# Source the core test verification logic
-source "${CLAUDE_PLUGIN_ROOT}/scripts/test-verification-core.sh"
+# Shared config helpers (load_guardian_config, config_bool)
+source "${CLAUDE_PLUGIN_ROOT}/scripts/config-core.sh"
 
 # --- Early exit checks ---
 # Read JSON from stdin once and store it
@@ -414,14 +414,6 @@ if [ "$ONESHOT_MODE_ENABLED" = "true" ] && [ -n "${ONESHOT_MODE:-}" ]; then
         fi
     fi
 
-    # 6. Tests Pass Check
-    if [ "$(config_bool "$STRICT_REQS" '.testsPass' true)" = "true" ]; then
-        TEST_VERIFICATION_CONFIG=$(echo "$CONFIG" | jq -r '.testVerification // {}')
-        if ! check_test_status "$TRANSCRIPT_PATH" "$TEST_VERIFICATION_CONFIG"; then
-            ISSUES+=("❌ Tests have not passed - You MUST run tests and fix any failures.")
-        fi
-    fi
-
     if [ ${#ISSUES[@]} -gt 0 ]; then
         echo "🎯 ONE SHOT MODE - Issues to resolve:" >&2
         for issue in "${ISSUES[@]}"; do echo "   $issue" >&2; done
@@ -456,18 +448,28 @@ add_message() {
 # 1. Format and Lint
 FORMAT_LINT_CONFIG=$(echo "$STOP_VALIDATION_CONFIG" | jq -r '.validation.formatAndLint // {}')
 if [ "$(echo "$FORMAT_LINT_CONFIG" | jq -r '.enabled // false')" = "true" ]; then
-    mapfile -t commands < <(echo "$FORMAT_LINT_CONFIG" | jq -r '.commands[]')
-    for cmd in "${commands[@]}"; do
-        # Use bash -c instead of eval to reduce risk of code injection.
-        # Redirect the command's stdout to stderr: this hook may emit a JSON
-        # response on stdout, and formatters/linters routinely print there.
-        # Mixing the two would leave stdout unparseable and silently drop the
-        # systemMessage. stderr keeps the output visible for debugging.
-        if ! bash -c "$cmd" >&2; then
-            add_message "error" "❌ Command '$cmd' failed."
-            break
-        fi
-    done
+    # macOS ships bash 3.2, which has no `mapfile`/`readarray`, so read the
+    # commands with a plain loop. `${arr[@]}` on an empty array is also an
+    # unbound-variable error under `set -u` before bash 4.4, hence the count
+    # guard: this hook runs as /bin/bash, which on macOS is 3.2.
+    commands=()
+    while IFS= read -r configured_command; do
+        [ -n "$configured_command" ] && commands+=("$configured_command")
+    done < <(echo "$FORMAT_LINT_CONFIG" | jq -r '.commands[]?' || true)
+
+    if [ ${#commands[@]} -gt 0 ]; then
+        for cmd in "${commands[@]}"; do
+            # Use bash -c instead of eval to reduce risk of code injection.
+            # Redirect the command's stdout to stderr: this hook may emit a JSON
+            # response on stdout, and formatters/linters routinely print there.
+            # Mixing the two would leave stdout unparseable and silently drop the
+            # systemMessage. stderr keeps the output visible for debugging.
+            if ! bash -c "$cmd" >&2; then
+                add_message "error" "❌ Command '$cmd' failed."
+                break
+            fi
+        done
+    fi
 fi
 
 # 2. Uncommitted Changes
@@ -506,16 +508,6 @@ if [ "$NO_PR_LEVEL" != "ignore" ]; then
     commits_ahead=$(git_commits_ahead_of_base)
     if should_check_pr "$current_branch" "$commits_ahead" && [ "$(pr_exists_for_branch "$current_branch")" = "no" ]; then
         add_message "$NO_PR_LEVEL" "No PR created for branch '$current_branch'. Consider running 'gh pr create'."
-    fi
-fi
-
-# 5. Test Status
-TEST_VERIFICATION_CONFIG=$(echo "$STOP_VALIDATION_CONFIG" | jq -r '.validation.testVerification // {}')
-if [ "$(echo "$TEST_VERIFICATION_CONFIG" | jq -r '.enabled // false')" = "true" ]; then
-    TEST_VERIFICATION_CORE_CONFIG=$(echo "$CONFIG" | jq -r '.testVerification // {}')
-    if ! check_test_status "$TRANSCRIPT_PATH" "$TEST_VERIFICATION_CORE_CONFIG"; then
-        level=$(echo "$TEST_VERIFICATION_CONFIG" | jq -r '.level // "warn"')
-        add_message "$level" "Tests are not in a passing state."
     fi
 fi
 

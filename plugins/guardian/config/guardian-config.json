@@ -2,76 +2,12 @@
   "$schema": "https://docs.claude.com/schemas/guardian-config.json",
   "description": "Guardian plugin default configuration. Override with ~/.config/claude-code/guardian.json (global) or .claude/guardian.json (project-specific)",
 
-  "testVerification": {
-    "description": "Ensures tests have been run before allowing commits. Disabled by default - enable in project config with project-specific test commands.",
-    "enabled": false,
-    "skipInRemote": true,
-    "comment_skipInRemote": "Skip in remote Claude Code sessions (limited resources)",
-
-    "testCommands": {
-      "description": "Patterns to recognize valid test commands in transcript",
-      "local": [],
-      "comment_local": "Add patterns like: {'pattern': '^pytest\\b', 'name': 'pytest'} or {'pattern': '^npm test', 'name': 'npm test'}",
-      "remote": [],
-      "comment_remote": "Lighter commands for remote sessions, e.g. linting only"
-    },
-
-    "environmentSelector": "CLAUDE_CODE_REMOTE",
-    "comment_environmentSelector": "Environment variable to check for remote vs local (true = remote)",
-
-    "triggerCommands": [
-      "git commit",
-      "gh pr create"
-    ],
-    "comment_triggerCommands": "Commands that trigger the test verification check",
-
-    "excludeFromTestRequirement": [
-      "^docs/",
-      "^\\.claude/",
-      "^\\.github/",
-      "^\\.devcontainer/",
-      "\\.(md|txt|rst)$",
-      "^README",
-      "^LICENSE",
-      "^CHANGELOG"
-    ],
-    "comment_excludeFromTestRequirement": "Files that don't require tests (docs, config, etc)",
-
-    "relaxedTestFileVerification": {
-      "description": "Allow commits when only test files have changed since last full test run, if those specific tests have passed",
-      "enabled": true,
-      "testFilePatterns": [
-        "^tests?/",
-        "_test\\.py$",
-        "test_[^/]*\\.py$",
-        "\\.test\\.(js|ts|jsx|tsx)$",
-        "\\.spec\\.(js|ts|jsx|tsx)$"
-      ],
-      "comment_testFilePatterns": "Patterns that identify test files. If only these files changed since full test run, individual test verification is allowed.",
-      "singleTestCommand": {
-        "description": "Template for running a single test file. Use {file} as placeholder for the file path.",
-        "local": null,
-        "comment_local": "Set to command template like 'pytest {file}' or 'npm test -- {file}'",
-        "remote": null,
-        "comment_remote": "Same as local but for remote environments"
-      }
-    },
-    "comment_relaxedTestFileVerification": "Allows bypassing full test re-run when only test files changed and those specific tests pass",
-
-    "testReportFallback": {
-      "description": "If transcript doesn't show test run, check for test report file",
-      "enabled": true,
-      "reportFile": ".report.json",
-      "transcriptStaleThreshold": 300,
-      "comment_transcriptStaleThreshold": "Seconds - how old transcript can be before requiring fresh test run"
-    }
-  },
-
   "preCommitReview": {
-    "description": "Pre-commit workflow: format, lint, run pre-commit hooks, and LLM code review",
+    "description": "Pre-commit workflow: execute git adds, format, lint, and run pre-commit hooks",
+    "comment_description": "No LLM code review runs here. review-changes.py is a manual tool - see scripts/review-changes.py in the marketplace repo.",
     "enabled": true,
     "skipInRemote": true,
-    "comment_skipInRemote": "Skip in remote sessions (LLM review is expensive)",
+    "comment_skipInRemote": "Skip in remote sessions",
 
     "triggers": {
       "gitCommit": true,
@@ -101,27 +37,7 @@
         "enabled": true,
         "maxIterations": 5,
         "comment_maxIterations": "Max iterations when hooks modify files (prevents infinite loops)"
-      },
-
-      "runCodeReview": {
-        "description": "LLM-based code review using bundled review-changes.py script",
-        "enabled": false,
-        "comment_enabled": "Disabled by default (expensive). Enable in project config. Requires OPENROUTER_KEY or configured llm model.",
-        "cacheKeyLength": 12,
-        "comment_cacheKeyLength": "Length of cache key prefix for 'Reviewed: cache-XXXX' sentinel"
       }
-    },
-
-    "bypassMechanisms": {
-      "description": "How to bypass review warnings/blocks",
-      "reviewedSentinel": "Reviewed: cache-{id}",
-      "comment_reviewedSentinel": "Add to commit message to acknowledge minor issues",
-      "bypassSentinel": "Bypass-Review: {reason}",
-      "comment_bypassSentinel": "Add to commit message to escalate blocking issues to user",
-      "allowReviewedForMinor": true,
-      "comment_allowReviewedForMinor": "Allow 'Reviewed' sentinel for minor/warning issues",
-      "requireBypassForBlocking": true,
-      "comment_requireBypassForBlocking": "Require 'Bypass-Review' with reason for blocking issues"
     }
   },
 
@@ -148,13 +64,6 @@
       "unpushedCommits": "warn",
       "comment_unpushedCommits": "How to handle unpushed commits: 'ignore', 'warn', or 'error'. Only reports when the branch actually carries commits that aren't on its upstream, or has commits ahead of the base branch with no upstream at all.",
 
-      "testVerification": {
-        "description": "How to handle missing test runs. Leverages the same logic as the pre-commit test verification hook.",
-        "enabled": false,
-        "level": "warn",
-        "comment_level": "Behavior on failure: 'warn' or 'error'. Note: This check uses the main 'testVerification' section for its core configuration (test commands, excludes, etc.)."
-      },
-
       "noPr": "warn",
       "comment_noPr": "How to handle no PR created for current branch: 'ignore', 'warn', or 'error'. Only runs when a PR is genuinely the missing next step: on a real branch (not detached HEAD), not the trunk, with commits ahead of the base branch, already pushed to an upstream, and where the PR lookup itself succeeded. A merged or closed PR only counts while its head commit is still the branch head, so a reused branch isn't covered by its previous PR."
     },
@@ -168,8 +77,7 @@
         "featureBranch": true,
         "cleanWorkingDir": true,
         "allCommitsPushed": true,
-        "prCreated": true,
-        "testsPass": true
+        "prCreated": true
       },
       "comment_strictRequirements": "Each requirement may be set to false to drop it. A missing key uses the default of true.",
       "allowFailureFile": ".claude/FAILURE_REASON",

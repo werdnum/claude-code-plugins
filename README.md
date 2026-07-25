@@ -23,7 +23,7 @@ This repository serves as a local plugin marketplace for Claude Code, containing
 
 1. **bash-guard** - Safety enforcement for shell commands
 2. **format-and-lint** - Automated code quality checks
-3. **guardian** - Test verification and quality gates
+3. **guardian** - Commit, push and PR completion checks
 4. **development-agents** - Specialized AI agents for development tasks
 
 All plugins were extracted from the `family-assistant` and `websidian` projects, refactored for reusability, and enhanced with comprehensive configuration systems.
@@ -34,7 +34,7 @@ These plugins solve real development workflow challenges:
 
 - **Prevent mistakes** before they happen (bash-guard)
 - **Maintain code quality** automatically (format-and-lint)
-- **Enforce testing discipline** without manual checking (guardian)
+- **Stop work being left unfinished** — uncommitted, unpushed, or without a PR (guardian)
 - **Delegate specialized tasks** to focused agents (development-agents)
 
 ## Quick Start
@@ -155,18 +155,16 @@ Automatically format and lint code after edits, providing immediate feedback on 
 **Hook Types**: PreToolUse (Bash), Stop
 **Configuration**: `guardian.json`
 
-Ensures code quality through test verification, pre-commit workflows, and completion validation.
+Keeps a session's work from being left unfinished, and runs the pre-commit workflow before commits.
 
 **Key Features**:
-- **Test Verification**: Ensures tests run and pass before commits
-- **Pre-Commit Review**: Executes git adds, runs pre-commit hooks, optional code review
-- **Stop Validation**: "Keep going" prompts to ensure work completeness
+- **Pre-Commit Workflow**: Executes git adds, runs formatters/linters and pre-commit hooks
+- **Stop Validation**: Checks uncommitted changes, unpushed commits, and missing PRs at session end
 - **Oneshot Mode**: Strict requirements for automated/CI environments
 
 **Use Cases**:
-- Enforce testing discipline
+- Catch work that was never committed, pushed, or proposed
 - Automate pre-commit workflows
-- Prevent incomplete work sessions
 - CI/CD integration with oneshot mode
 
 **[Full Documentation →](plugins/guardian/README.md)**
@@ -348,12 +346,6 @@ You should see all installed plugins with their status (enabled/disabled).
 Q: Should commits to the main branch be blocked?
 A: Enable protection
 
-Q: How strict should test verification be?
-A: Strict - Always require tests before commits
-
-Q: Enable LLM code review before commits?
-A: Enable code review
-
 Q: How thorough should completion checks be?
 A: Strict - Verify formatting, tests, and commits
 ```
@@ -371,7 +363,7 @@ A: Strict - Verify formatting, tests, and commits
    - .claude/settings.json (marketplace + plugins enabled)
    - .claude/bash-guard.json (branch protection + timeouts)
    - .claude/format-lint.json (Python tools enabled)
-   - .claude/guardian.json (test verification configured)
+   - .claude/guardian.json (stop validation configured)
 
 ✅ All plugins configured and ready to use!
 ```
@@ -410,17 +402,18 @@ def hello(name):
 ✅ basedpyright (1.5s)
 ```
 
-### Example 3: Test Verification Before Commit
+### Example 3: Catching Unfinished Work at Session End
 
-**Scenario**: Attempt to commit without running tests
+**Scenario**: A session ends with work that was never pushed
 
 ```bash
-# With guardian installed
-Claude attempts: git commit -m "Add new feature"
+# With guardian installed and stopValidation enabled
+Claude finishes its turn
 
-# Result: ❌ Blocked
-❌ Tests have not been run since modifying src/feature.py at 2025-10-22T14:30:00
-You MUST run 'poe test' before finishing
+# Result: ⚠️ Surfaced as a warning (doesn't block)
+✋ Guardian stop validation warnings:
+   - Branch has commits that aren't on any remote; push with 'git push -u origin HEAD'.
+   - No PR created for branch 'feature-x'. Consider running 'gh pr create'.
 ```
 
 ### Example 4: Using Specialized Agents
@@ -470,7 +463,7 @@ export ONESHOT_MODE=true
 # ✓ On feature branch (not main)
 # ✓ All changes committed
 # ✓ All commits pushed
-# ✓ Tests passing
+# ✓ PR created
 
 # Only allows exit when ALL requirements met
 ```
@@ -527,6 +520,9 @@ claude-code-plugins/
 │   ├── format-and-lint/
 │   ├── guardian/
 │   └── development-agents/
+├── scripts/                      # Standalone tools (not part of any plugin)
+│   ├── review-changes.py         # Manual LLM code review
+│   └── REVIEW_GUIDELINES.md      # Default guidelines for the above
 ├── PLUGIN_PLAN.md                # Implementation plan
 ├── CLAUDE.md                     # Project instructions
 └── README.md                     # This file
@@ -653,7 +649,7 @@ Plugins are designed to work independently but can complement each other:
 
 - **bash-guard** prevents dangerous commands
 - **format-and-lint** ensures code quality after edits
-- **guardian** enforces testing discipline before commits
+- **guardian** checks work is committed, pushed and proposed before a session ends
 - **development-agents** provides specialized capabilities
 
 ## Contributing
