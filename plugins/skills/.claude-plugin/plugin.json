@@ -1,10 +1,9 @@
 {
   "name": "skills",
-  "version": "1.1.0",
-  "description": "Collection of assorted skills for Claude Code - currently includes jj-vcs (Jujutsu workflow) with room for more",
+  "version": "1.2.0",
+  "description": "Collection of assorted skills for Claude Code, including Jujutsu workflow and review scope discipline",
   "author": {
     "name": "Andrew Garrett",
     "email": "andrewgarrett@google.com"
   }
 }
-

@@ -1,5 +1,7 @@
 # Claude Code Plugins Repository
 
+@AGENTS.md
+
 This repository contains miscellaneous Claude Code plugins for personal development use.
 
 ## About This Repository
