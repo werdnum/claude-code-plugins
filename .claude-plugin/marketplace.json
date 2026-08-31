@@ -50,9 +50,8 @@
     {
       "name": "skills",
       "source": "./plugins/skills",
-      "version": "1.1.0",
-      "description": "Collection of assorted skills - currently includes jj-vcs (Jujutsu workflow); designed to grow with additional skills"
+      "version": "1.2.0",
+      "description": "Collection of assorted skills, including Jujutsu workflow and review scope discipline"
     }
   ]
 }
-

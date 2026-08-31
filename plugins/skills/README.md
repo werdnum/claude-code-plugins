@@ -5,6 +5,7 @@ Catch-all plugin for assorted Claude Code skills maintained in this repo. Add a 
 ## Skills included
 
 - **jj-vcs** — Teaches the "jj way" of version control: working copy as commit, move changes between commits with `squash --into`, first-class conflicts, undo via operation log, bookmarks instead of branches. Loads on any repo with `.jj/` or when the user mentions jj / jujutsu.
+- **scope-checkpoint** — Detects review-driven machinery and unrequested promises, then pauses fix loops for an explicit scope decision.
 
 ## Install
 
@@ -19,4 +20,3 @@ Catch-all plugin for assorted Claude Code skills maintained in this repo. Add a 
 3. Bump this plugin's version in `.claude-plugin/plugin.json` and in the top-level `.claude-plugin/marketplace.json`.
 
 See `plugins/development-agents/skills/skill-creator/SKILL.md` in this repo for the authoring guide.
-
