@@ -24,6 +24,11 @@
       "explanation": "Direct modification of protected bookmarks (main/master) is not allowed. This is equivalent to pushing to protected branches in git. Please create a feature bookmark instead and submit changes through proper review workflow."
     },
     {
+      "regexp": "\\b(while|until)\\s+(!\\s*)?pgrep\\s+(\\S+\\s+)*-[a-zA-Z]*f",
+      "action": "block",
+      "explanation": "A while/until loop on `pgrep -f <pattern>` matches its own command line, which contains the pattern, so it never ends. To wait for a command you put in the background, let the harness tell you when it finishes, or wait on its PID (`while kill -0 <pid>; do ...`)."
+    },
+    {
       "regexp": "2>/dev/null.*\\|\\|.*echo",
       "action": "block",
       "explanation": "Redirecting stderr to /dev/null and then echoing an assumed error message hides the real error. Let the actual error message come through so you can see what really went wrong."
